@@ -4,70 +4,71 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use uuid::Uuid;
+use reqwest::Client;
 
 use crate::config::Config;
 use crate::error::AppError;
-use super::{DataSource, RawDataRecord, DataCollector, DataSourceCategory};
+use super::{DataSource, RawDataRecord, DataCollector, DataSourceCategory, DataMetadata, Coordinates};
 use super::sources::satellite::{SatelliteImagingCollector, SatelliteRadarCollector, SatelliteLidarCollector};
 
-/// Ground-based weather station collector
+/// Weather station data collector
 pub struct WeatherStationCollector {
     config: Arc<Config>,
-    http_client: reqwest::Client,
+    http_client: Client,
 }
 
 /// Agricultural sensor network collector
 pub struct AgriculturalSensorCollector {
     config: Arc<Config>,
-    http_client: reqwest::Client,
+    http_client: Client,
 }
 
 /// Ground-based radar collector
 pub struct GroundRadarCollector {
     config: Arc<Config>,
-    http_client: reqwest::Client,
+    http_client: Client,
 }
 
 /// Flux tower data collector
 pub struct FluxTowerCollector {
     config: Arc<Config>,
-    http_client: reqwest::Client,
+    http_client: Client,
 }
 
 /// Soil monitoring network collector
 pub struct SoilMonitoringCollector {
     config: Arc<Config>,
-    http_client: reqwest::Client,
+    http_client: Client,
 }
 
 /// Ocean observation collector
 pub struct OceanObservationCollector {
     config: Arc<Config>,
-    http_client: reqwest::Client,
+    http_client: Client,
 }
 
 /// Atmospheric profiling collector
 pub struct AtmosphericProfilingCollector {
     config: Arc<Config>,
-    http_client: reqwest::Client,
+    http_client: Client,
 }
 
 /// Global model data collector
 pub struct GlobalModelCollector {
     config: Arc<Config>,
-    http_client: reqwest::Client,
+    http_client: Client,
 }
 
 /// Regional model data collector
 pub struct RegionalModelCollector {
     config: Arc<Config>,
-    http_client: reqwest::Client,
+    http_client: Client,
 }
 
 /// Reanalysis data collector
 pub struct ReanalysisDataCollector {
     config: Arc<Config>,
-    http_client: reqwest::Client,
+    http_client: Client,
 }
 
 /// Collector registry that manages all data collectors
@@ -167,80 +168,15 @@ impl CollectorRegistry {
 
 impl WeatherStationCollector {
     pub async fn new(config: Arc<Config>) -> Result<Self, AppError> {
-        let http_client = reqwest::Client::builder()
+        let http_client = Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| AppError::internal(format!("Failed to create HTTP client: {}", e)))?;
         
         Ok(Self { config, http_client })
     }
-}
 
-#[async_trait]
-impl DataCollector for WeatherStationCollector {
-    async fn collect_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
-        let mut records = Vec::new();
-        
-        match source.provider.as_str() {
-            "NOAA" => {
-                records.extend(self.collect_noaa_station_data(source).await?);
-            },
-            "SAWS" => {
-                records.extend(self.collect_saws_data(source).await?);
-            },
-            _ => {
-                return Err(AppError::external_service(
-                    &source.provider,
-                    "Unsupported weather station provider"
-                ));
-            }
-        }
-        
-        Ok(records)
-    }
-    
-    async fn validate_connection(&self, source: &DataSource) -> Result<bool, AppError> {
-        if let Some(endpoint) = &source.api_endpoint {
-            let response = self.http_client.get(endpoint).send().await;
-            match response {
-                Ok(resp) => Ok(resp.status().is_success()),
-                Err(_) => Ok(false),
-            }
-        } else {
-            Ok(false)
-        }
-    }
-    
-    async fn get_available_parameters(&self, source: &DataSource) -> Result<Vec<String>, AppError> {
-        match source.provider.as_str() {
-            "NOAA" => Ok(vec![
-                "temperature".to_string(),
-                "precipitation".to_string(),
-                "wind_speed".to_string(),
-                "wind_direction".to_string(),
-                "pressure".to_string(),
-                "humidity".to_string(),
-            ]),
-            "SAWS" => Ok(vec![
-                "air_temperature".to_string(),
-                "rainfall".to_string(),
-                "wind_speed".to_string(),
-                "relative_humidity".to_string(),
-                "solar_radiation".to_string(),
-                "evaporation".to_string(),
-            ]),
-            _ => Ok(vec![]),
-        }
-    }
-    
-    async fn estimate_data_volume(&self, _source: &DataSource) -> Result<u64, AppError> {
-        // Weather station data is relatively small - typically 1-2KB per hour per station
-        Ok(24 * 1024 * 2) // ~48KB per day per station
-    }
-}
-
-impl WeatherStationCollector {
-    async fn collect_noaa_station_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
+    async fn collect_noaa_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
         let mut records = Vec::new();
         
         if let Some(endpoint) = &source.api_endpoint {
@@ -266,10 +202,10 @@ impl WeatherStationCollector {
                         let record = RawDataRecord {
                             id: Uuid::new_v4(),
                             source_id: source.id,
-                            timestamp: self.parse_noaa_timestamp(result.get("date"))?,
+                            timestamp: self.parse_timestamp(result.get("date"))?,
                             ingestion_time: Utc::now(),
                             data: result.clone(),
-                            metadata: self.extract_noaa_metadata(result)?,
+                            metadata: self.extract_metadata(result)?,
                             quality_flags: vec![],
                             file_path: None,
                         };
@@ -278,72 +214,20 @@ impl WeatherStationCollector {
                 }
             }
         }
-        
         Ok(records)
     }
-    
-    async fn collect_saws_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
-        let mut records = Vec::new();
-        
-        if let Some(endpoint) = &source.api_endpoint {
-            let response = self.http_client
-                .get(endpoint)
-                .send()
-                .await
-                .map_err(|e| AppError::external_service("SAWS", &format!("Request failed: {}", e)))?;
-            
-            if response.status().is_success() {
-                let csv_data = response.text().await
-                    .map_err(|e| AppError::external_service("SAWS", &format!("Text parse failed: {}", e)))?;
-                
-                let mut reader = csv::Reader::from_reader(csv_data.as_bytes());
-                for result in reader.deserialize() {
-                    let record_data: serde_json::Value = result
-                        .map_err(|e| AppError::external_service("SAWS", &format!("CSV parse failed: {}", e)))?;
-                    
-                    let record = RawDataRecord {
-                        id: Uuid::new_v4(),
-                        source_id: source.id,
-                        timestamp: self.parse_saws_timestamp(&record_data)?,
-                        ingestion_time: Utc::now(),
-                        data: record_data.clone(),
-                        metadata: self.extract_saws_metadata(&record_data)?,
-                        quality_flags: vec![],
-                        file_path: None,
-                    };
-                    records.push(record);
-                }
-            }
-        }
-        
-        Ok(records)
-    }
-    
-    fn parse_noaa_timestamp(&self, date_value: Option<&serde_json::Value>) -> Result<DateTime<Utc>, AppError> {
+
+    fn parse_timestamp(&self, date_value: Option<&serde_json::Value>) -> Result<DateTime<Utc>, AppError> {
         if let Some(date_str) = date_value.and_then(|v| v.as_str()) {
             chrono::DateTime::parse_from_rfc3339(date_str)
                 .map(|dt| dt.with_timezone(&Utc))
-                .map_err(|e| AppError::internal(format!("Failed to parse NOAA timestamp: {}", e)))
+                .map_err(|e| AppError::internal(format!("Failed to parse timestamp: {}", e)))
         } else {
             Ok(Utc::now())
         }
     }
-    
-    fn parse_saws_timestamp(&self, data: &serde_json::Value) -> Result<DateTime<Utc>, AppError> {
-        if let Some(date_str) = data.get("date").and_then(|v| v.as_str()) {
-            chrono::NaiveDateTime::parse_from_str(date_str, "%Y-%m-%d %H:%M:%S")
-                .map(|dt| dt.and_utc())
-                .or_else(|_| {
-                    chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d")
-                        .map(|d| d.and_hms_opt(0, 0, 0).unwrap().and_utc())
-                })
-                .map_err(|e| AppError::internal(format!("Failed to parse SAWS timestamp: {}", e)))
-        } else {
-            Ok(Utc::now())
-        }
-    }
-    
-    fn extract_noaa_metadata(&self, data: &serde_json::Value) -> Result<super::DataMetadata, AppError> {
+
+    fn extract_metadata(&self, data: &serde_json::Value) -> Result<DataMetadata, AppError> {
         let mut parameters = HashMap::new();
         let mut units = HashMap::new();
         
@@ -355,71 +239,54 @@ impl WeatherStationCollector {
             parameters.insert("value".to_string(), value.to_string());
         }
         
-        if let Some(station) = data.get("station").and_then(|v| v.as_str()) {
-            parameters.insert("station_id".to_string(), station.to_string());
-        }
-        
-        // Extract coordinates if available
-        let coordinates = if let (Some(lat), Some(lon)) = (
-            data.get("latitude").and_then(|v| v.as_f64()),
-            data.get("longitude").and_then(|v| v.as_f64())
-        ) {
-            Some(super::Coordinates {
-                latitude: lat,
-                longitude: lon,
-                coordinate_system: "WGS84".to_string(),
-            })
-        } else {
-            None
-        };
-        
-        Ok(super::DataMetadata {
+        Ok(DataMetadata {
             parameters,
             units,
-            coordinates,
-            elevation: data.get("elevation").and_then(|v| v.as_f64()),
-            instrument_info: data.get("instrument").and_then(|v| v.as_str()).map(|s| s.to_string()),
-            processing_level: Some("Raw".to_string()),
-            version: Some("1.0".to_string()),
-        })
-    }
-    
-    fn extract_saws_metadata(&self, data: &serde_json::Value) -> Result<super::DataMetadata, AppError> {
-        let mut parameters = HashMap::new();
-        let mut units = HashMap::new();
-        
-        // Extract all available parameters
-        for (key, value) in data.as_object().unwrap_or(&serde_json::Map::new()) {
-            if let Some(v) = value.as_str() {
-                parameters.insert(key.clone(), v.to_string());
-            } else if let Some(v) = value.as_f64() {
-                parameters.insert(key.clone(), v.to_string());
-            }
-        }
-        
-        // Set typical units for SAWS data
-        units.insert("temperature".to_string(), "celsius".to_string());
-        units.insert("rainfall".to_string(), "mm".to_string());
-        units.insert("wind_speed".to_string(), "m/s".to_string());
-        units.insert("humidity".to_string(), "percent".to_string());
-        units.insert("pressure".to_string(), "hPa".to_string());
-        
-        Ok(super::DataMetadata {
-            parameters,
-            units,
-            coordinates: None, // Would need to be enriched with station metadata
+            coordinates: None,
             elevation: None,
-            instrument_info: Some("SAWS Automatic Weather Station".to_string()),
+            instrument_info: Some("Weather Station".to_string()),
             processing_level: Some("Raw".to_string()),
             version: Some("1.0".to_string()),
         })
     }
 }
 
+#[async_trait]
+impl DataCollector for WeatherStationCollector {
+    async fn collect_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
+        match source.provider.as_str() {
+            "NOAA" => self.collect_noaa_data(source).await,
+            _ => Err(AppError::external_service(&source.provider, "Unsupported provider")),
+        }
+    }
+    
+    async fn validate_connection(&self, source: &DataSource) -> Result<bool, AppError> {
+        if let Some(endpoint) = &source.api_endpoint {
+            let response = self.http_client.get(endpoint).send().await;
+            Ok(response.map(|r| r.status().is_success()).unwrap_or(false))
+        } else {
+            Ok(false)
+        }
+    }
+    
+    async fn get_available_parameters(&self, _source: &DataSource) -> Result<Vec<String>, AppError> {
+        Ok(vec![
+            "temperature".to_string(),
+            "precipitation".to_string(),
+            "wind_speed".to_string(),
+            "humidity".to_string(),
+        ])
+    }
+    
+    async fn estimate_data_volume(&self, _source: &DataSource) -> Result<u64, AppError> {
+        Ok(24 * 1024 * 2) // ~48KB per day
+    }
+}
+
 // Implement similar patterns for other collectors
 impl AgriculturalSensorCollector {
     pub async fn new(config: Arc<Config>) -> Result<Self, AppError> {
-        let http_client = reqwest::Client::builder()
+        let http_client = Client::builder()
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| AppError::internal(format!("Failed to create HTTP client: {}", e)))?;
@@ -529,7 +396,7 @@ impl AgriculturalSensorCollector {
         }
     }
     
-    fn extract_arc_metadata(&self, data: &serde_json::Value) -> Result<super::DataMetadata, AppError> {
+    fn extract_arc_metadata(&self, data: &serde_json::Value) -> Result<DataMetadata, AppError> {
         let mut parameters = HashMap::new();
         let mut units = HashMap::new();
         
@@ -548,7 +415,7 @@ impl AgriculturalSensorCollector {
         units.insert("rainfall".to_string(), "mm".to_string());
         units.insert("solar_radiation".to_string(), "MJ/m2/day".to_string());
         
-        Ok(super::DataMetadata {
+        Ok(DataMetadata {
             parameters,
             units,
             coordinates: None, // Would need to be enriched with station metadata
@@ -565,7 +432,7 @@ macro_rules! impl_basic_collector {
     ($collector:ident, $provider:expr) => {
         impl $collector {
             pub async fn new(config: Arc<Config>) -> Result<Self, AppError> {
-                let http_client = reqwest::Client::builder()
+                let http_client = Client::builder()
                     .timeout(std::time::Duration::from_secs(30))
                     .build()
                     .map_err(|e| AppError::internal(format!("Failed to create HTTP client: {}", e)))?;
