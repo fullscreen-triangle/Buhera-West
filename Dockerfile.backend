@@ -1,0 +1,107 @@
+# Multi-stage Dockerfile for Rust backend
+FROM rust:1.75-slim-bullseye as base
+
+# Install system dependencies for scientific computing
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    libpq-dev \
+    libnetcdf-dev \
+    libhdf5-dev \
+    libgeos-dev \
+    libproj-dev \
+    libopenblas-dev \
+    liblapack-dev \
+    libgfortran5 \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cargo tools
+RUN cargo install cargo-watch sqlx-cli
+
+WORKDIR /app
+
+# Development stage
+FROM base as development
+
+# Copy manifests
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ ./crates/
+
+# Create dummy main files to cache dependencies
+RUN mkdir -p src && echo "fn main() {}" > src/main.rs
+RUN cargo build --release && rm -rf src target/release/deps/buhera*
+
+# Copy source code
+COPY src/ ./src/
+COPY migrations/ ./migrations/
+COPY proto/ ./proto/
+COPY build.rs ./
+
+# Build application
+RUN cargo build --release
+
+# Expose ports
+EXPOSE 8080 9090
+
+# Development command with hot reload
+CMD ["cargo", "watch", "-x", "run"]
+
+# Production stage  
+FROM base as production
+
+# Copy manifests and build dependencies
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ ./crates/
+
+# Build dependencies (cached layer)
+RUN mkdir -p src && echo "fn main() {}" > src/main.rs
+RUN cargo build --release && rm -rf src
+
+# Copy source and build application
+COPY src/ ./src/
+COPY migrations/ ./migrations/
+COPY proto/ ./proto/
+COPY build.rs ./
+
+RUN cargo build --release
+
+# Runtime stage
+FROM debian:bullseye-slim as runtime
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    libssl1.1 \
+    libpq5 \
+    libnetcdf19 \
+    libhdf5-103 \
+    libgeos-c1v5 \
+    libproj19 \
+    libopenblas0 \
+    liblapack3 \
+    libgfortran5 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user
+RUN groupadd -r app && useradd -r -g app app
+
+WORKDIR /app
+
+# Copy binary from production stage
+COPY --from=production /app/target/release/buhera-west /app/
+COPY --from=production /app/migrations /app/migrations/
+
+# Change ownership
+RUN chown -R app:app /app
+USER app
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+CMD ["./buhera-west"] 

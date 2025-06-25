@@ -1,0 +1,124 @@
+[package]
+name = "buhera-west"
+version = "0.1.0"
+edition = "2021"
+authors = ["Buhera West Team"]
+description = "High-Performance Agricultural Weather Analysis Platform"
+license = "MIT"
+repository = "https://github.com/yourusername/buhera-west"
+keywords = ["weather", "agriculture", "meteorology", "forecast", "analytics"]
+categories = ["science", "web-programming", "api-bindings"]
+
+[workspace]
+members = [
+    "crates/weather-engine",
+    "crates/agriculture-analytics", 
+    "crates/data-ingestion",
+    "crates/forecasting",
+    "crates/spatial-analysis",
+    "crates/api-server"
+]
+
+[dependencies]
+# Async runtime and web framework
+tokio = { version = "1.35", features = ["full"] }
+axum = { version = "0.7", features = ["ws", "headers", "multipart"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "compression", "fs"] }
+
+# Serialization and data handling
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# Database and time series
+sqlx = { version = "0.7", features = ["postgres", "runtime-tokio-rustls", "chrono", "uuid", "json"] }
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+
+# gRPC and networking  
+tonic = { version = "0.10", features = ["transport", "codegen", "prost"] }
+tonic-build = "0.10"
+prost = "0.12"
+reqwest = { version = "0.11", features = ["json", "stream", "rustls-tls"] }
+
+# Mathematical and scientific computing
+ndarray = { version = "0.15", features = ["rayon", "serde"] }
+ndarray-linalg = { version = "0.16", features = ["openblas-static"] }
+polars = { version = "0.36", features = ["lazy", "temporal", "dtype-datetime", "parquet", "csv"] }
+arrow = "50.0"
+rayon = "1.8"
+
+# Geospatial and weather-specific
+geo = "0.27"
+geojson = "0.24"
+proj = "0.27"
+netcdf = "0.8"
+hdf5 = "0.8"
+
+# Numerical methods and statistics
+nalgebra = "0.32"
+statrs = "0.16"
+linfa = { version = "0.7", features = ["serde"] }
+linfa-linear = "0.7"
+smartcore = { version = "0.3", features = ["serde"] }
+
+# Optimization and ML
+candle-core = "0.3"
+candle-nn = "0.3"
+ort = "1.16"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+time = { version = "0.3", features = ["serde", "formatting", "parsing"] }
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+
+# Error handling and utilities
+thiserror = "1.0"
+anyhow = "1.0"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+clap = { version = "4.4", features = ["derive", "env"] }
+
+# Configuration
+config = "0.14"
+dotenvy = "0.15"
+
+# Performance and monitoring
+metrics = "0.21"
+metrics-exporter-prometheus = "0.12"
+
+# Parallel processing
+crossbeam = "0.8"
+dashmap = "5.5"
+
+# Weather data formats
+grib = "0.7"
+bufr = "0.3"
+
+[dev-dependencies]
+tokio-test = "0.4"
+criterion = { version = "0.5", features = ["html_reports"] }
+proptest = "1.4"
+wiremock = "0.5"
+
+[[bench]]
+name = "weather_processing"
+harness = false
+
+[[bench]]
+name = "spatial_interpolation"
+harness = false
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.bench]
+opt-level = 3
+lto = true
+codegen-units = 1
