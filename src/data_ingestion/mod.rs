@@ -268,38 +268,26 @@ impl DataIngestionEngine {
     pub async fn new(config: Arc<Config>, db_pool: PgPool) -> Result<Self, AppError> {
         let sources = Arc::new(RwLock::new(HashMap::new()));
         
-        // Initialize all data collectors
-        let mut collectors: HashMap<DataSourceCategory, Box<dyn DataCollector + Send + Sync>> = HashMap::new();
+        // Initialize collector registry
+        let collector_registry = Arc::new(collectors::CollectorRegistry::new(config.clone()).await?);
         
-        // Satellite collectors
-        collectors.insert(DataSourceCategory::SatelliteImaging, 
-            Box::new(sources::satellite::SatelliteImagingCollector::new(config.clone()).await?));
-        collectors.insert(DataSourceCategory::SatelliteRadar, 
-            Box::new(sources::satellite::SatelliteRadarCollector::new(config.clone()).await?));
-        collectors.insert(DataSourceCategory::SatelliteLidar, 
-            Box::new(sources::satellite::SatelliteLidarCollector::new(config.clone()).await?));
+        // Initialize storage
+        let storage = Arc::new(storage::DataStorage::new(config.clone(), db_pool.clone()).await?);
         
-        // Ground-based collectors
-        collectors.insert(DataSourceCategory::WeatherStations, 
-            Box::new(sources::ground::WeatherStationCollector::new(config.clone()).await?));
-        collectors.insert(DataSourceCategory::ResearchNetworks, 
-            Box::new(sources::ground::ResearchNetworkCollector::new(config.clone()).await?));
-        
-        // Agricultural collectors
-        collectors.insert(DataSourceCategory::CropMonitoring, 
-            Box::new(sources::agriculture::CropMonitoringCollector::new(config.clone()).await?));
-        collectors.insert(DataSourceCategory::SoilHealth, 
-            Box::new(sources::agriculture::SoilHealthCollector::new(config.clone()).await?));
-        
-        // Model/reanalysis collectors
-        collectors.insert(DataSourceCategory::GlobalModels, 
-            Box::new(sources::models::GlobalModelCollector::new(config.clone()).await?));
-        collectors.insert(DataSourceCategory::ReanalysisData, 
-            Box::new(sources::models::ReanalysisCollector::new(config.clone()).await?));
-        
+        // Initialize publication collector
         let publication_collector = publications::PublicationCollector::new(config.clone()).await?;
-        let scheduler = scheduler::IngestionScheduler::new(config.clone()).await?;
-        let storage = storage::DataStorage::new(config.clone(), db_pool.clone()).await?;
+        
+        // Initialize scheduler
+        let scheduler = scheduler::IngestionScheduler::new(
+            config.clone(),
+            db_pool.clone(),
+            sources.clone(),
+            collector_registry.clone(),
+            storage.clone(),
+        ).await?;
+        
+        // Legacy collectors field - keeping for backward compatibility but empty
+        let collectors: HashMap<DataSourceCategory, Box<dyn DataCollector + Send + Sync>> = HashMap::new();
         
         Ok(Self {
             config,
@@ -308,7 +296,7 @@ impl DataIngestionEngine {
             collectors,
             publication_collector,
             scheduler,
-            storage,
+            storage: (*storage).clone(),
         })
     }
     

@@ -8,8 +8,9 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 use sqlx::{PgPool, Row};
 use flate2::write::GzEncoder;
+use flate2::read::GzDecoder;
 use flate2::Compression;
-use std::io::Write;
+use std::io::{Write, Read};
 
 use crate::config::Config;
 use crate::error::AppError;
@@ -400,12 +401,61 @@ impl DataStorage {
     // Additional helper methods would be implemented here...
     
     async fn store_file_metadata(&self, metadata: &DataFileMetadata) -> Result<(), AppError> {
-        // Implementation for storing file metadata in database
+        let query = r#"
+            INSERT INTO data_file_metadata (
+                file_id, source_id, file_path, file_size, compressed_size,
+                record_count, checksum, created_at, time_range_start, 
+                time_range_end, parameters
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            ON CONFLICT (file_id) DO UPDATE SET
+                file_size = EXCLUDED.file_size,
+                compressed_size = EXCLUDED.compressed_size,
+                record_count = EXCLUDED.record_count,
+                checksum = EXCLUDED.checksum,
+                time_range_start = EXCLUDED.time_range_start,
+                time_range_end = EXCLUDED.time_range_end,
+                parameters = EXCLUDED.parameters
+        "#;
+        
+        sqlx::query(query)
+            .bind(metadata.file_id)
+            .bind(metadata.source_id)
+            .bind(&metadata.file_path)
+            .bind(metadata.file_size as i64)
+            .bind(metadata.compressed_size as i64)
+            .bind(metadata.record_count as i32)
+            .bind(&metadata.checksum)
+            .bind(metadata.created_at)
+            .bind(metadata.time_range_start)
+            .bind(metadata.time_range_end)
+            .bind(&metadata.parameters)
+            .execute(&self.db_pool)
+            .await
+            .map_err(|e| AppError::database(e))?;
+        
         Ok(())
     }
     
-    async fn index_record(&self, _record: &RawDataRecord, _file_path: &str) -> Result<(), AppError> {
-        // Implementation for indexing records for fast retrieval
+    async fn index_record(&self, record: &RawDataRecord, file_path: &str) -> Result<(), AppError> {
+        let query = r#"
+            INSERT INTO data_record_index (
+                record_id, source_id, timestamp, file_path, parameters
+            ) VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (record_id) DO NOTHING
+        "#;
+        
+        let parameters: Vec<String> = record.metadata.parameters.keys().cloned().collect();
+        
+        sqlx::query(query)
+            .bind(record.id)
+            .bind(record.source_id)
+            .bind(record.timestamp)
+            .bind(file_path)
+            .bind(&parameters)
+            .execute(&self.db_pool)
+            .await
+            .map_err(|e| AppError::database(e))?;
+        
         Ok(())
     }
     
@@ -443,17 +493,84 @@ impl DataStorage {
     
     async fn find_relevant_files(
         &self,
-        _source_id: Option<Uuid>,
-        _time_start: Option<DateTime<Utc>>,
-        _time_end: Option<DateTime<Utc>>,
-        _parameters: Option<Vec<String>>,
+        source_id: Option<Uuid>,
+        time_start: Option<DateTime<Utc>>,
+        time_end: Option<DateTime<Utc>>,
+        parameters: Option<Vec<String>>,
     ) -> Result<Vec<String>, AppError> {
-        // Implementation for finding relevant files based on metadata
-        Ok(vec![])
+        let mut query = "SELECT file_path FROM data_file_metadata WHERE 1=1".to_string();
+        let mut bind_count = 0;
+        
+        if source_id.is_some() {
+            bind_count += 1;
+            query.push_str(&format!(" AND source_id = ${}", bind_count));
+        }
+        
+        if time_start.is_some() {
+            bind_count += 1;
+            query.push_str(&format!(" AND time_range_end >= ${}", bind_count));
+        }
+        
+        if time_end.is_some() {
+            bind_count += 1;
+            query.push_str(&format!(" AND time_range_start <= ${}", bind_count));
+        }
+        
+        if parameters.is_some() {
+            bind_count += 1;
+            query.push_str(&format!(" AND parameters && ${}", bind_count));
+        }
+        
+        query.push_str(" ORDER BY time_range_start");
+        
+        let mut query_builder = sqlx::query(&query);
+        
+        if let Some(sid) = source_id {
+            query_builder = query_builder.bind(sid);
+        }
+        
+        if let Some(start) = time_start {
+            query_builder = query_builder.bind(start);
+        }
+        
+        if let Some(end) = time_end {
+            query_builder = query_builder.bind(end);
+        }
+        
+        if let Some(params) = parameters {
+            query_builder = query_builder.bind(params);
+        }
+        
+        let rows = query_builder
+            .fetch_all(&self.db_pool)
+            .await
+            .map_err(|e| AppError::database(e))?;
+        
+        let mut file_paths = Vec::new();
+        for row in rows {
+            file_paths.push(row.get::<String, _>("file_path"));
+        }
+        
+        Ok(file_paths)
     }
     
     async fn load_records_from_file(&self, file_path: &str) -> Result<Vec<RawDataRecord>, AppError> {
-        // Implementation for loading and decompressing records from file
-        Ok(vec![])
+        let full_path = self.base_path.join(file_path);
+        
+        // Read compressed file
+        let compressed_data = fs::read(&full_path).await
+            .map_err(|e| AppError::internal(format!("Failed to read file {}: {}", file_path, e)))?;
+        
+        // Decompress data
+        let mut decoder = flate2::read::GzDecoder::new(&compressed_data[..]);
+        let mut decompressed = Vec::new();
+        decoder.read_to_end(&mut decompressed)
+            .map_err(|e| AppError::internal(format!("Failed to decompress file {}: {}", file_path, e)))?;
+        
+        // Deserialize records
+        let records: Vec<RawDataRecord> = serde_json::from_slice(&decompressed)
+            .map_err(|e| AppError::internal(format!("Failed to deserialize records from {}: {}", file_path, e)))?;
+        
+        Ok(records)
     }
 } 

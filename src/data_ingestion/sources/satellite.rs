@@ -265,20 +265,139 @@ impl SatelliteImagingCollector {
         Ok(records)
     }
 
-    async fn collect_viirs_data(&self, _source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
-        // Implementation for VIIRS data collection
-        // Similar structure to MODIS but with VIIRS-specific endpoints and metadata
-        Ok(vec![])
+    async fn collect_viirs_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
+        let mut records = Vec::new();
+        
+        let url = format!(
+            "{}/search/granules.json?collection_concept_id=VIIRS&temporal={}&page_size=50",
+            self.nasa_client.base_url,
+            self.get_temporal_range_for_collection()?
+        );
+        
+        let response = self.http_client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", self.nasa_client.api_key))
+            .send()
+            .await
+            .map_err(|e| AppError::external_service("NASA", &format!("VIIRS request failed: {}", e)))?;
+        
+        if response.status().is_success() {
+            let search_response: NASASearchResponse = response.json().await
+                .map_err(|e| AppError::external_service("NASA", &format!("VIIRS JSON parse failed: {}", e)))?;
+            
+            for entry in search_response.feed.entry.iter().take(10) {
+                let metadata = self.extract_nasa_metadata(entry)?;
+                
+                let record = RawDataRecord {
+                    id: Uuid::new_v4(),
+                    source_id: source.id,
+                    timestamp: chrono::DateTime::parse_from_rfc3339(&entry.updated)
+                        .map_err(|e| AppError::internal(format!("Failed to parse VIIRS timestamp: {}", e)))?
+                        .with_timezone(&Utc),
+                    ingestion_time: Utc::now(),
+                    data: serde_json::to_value(&entry)
+                        .map_err(|e| AppError::internal(format!("Failed to serialize VIIRS data: {}", e)))?,
+                    metadata,
+                    quality_flags: vec![],
+                    file_path: None,
+                };
+                
+                records.push(record);
+                sleep(Duration::from_millis(100)).await;
+            }
+        }
+        
+        Ok(records)
     }
 
-    async fn collect_landsat_data(&self, _source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
-        // Implementation for Landsat data collection via USGS Earth Explorer API
-        Ok(vec![])
+    async fn collect_landsat_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
+        let mut records = Vec::new();
+        
+        let url = format!(
+            "{}/search/granules.json?collection_concept_id=LANDSAT&temporal={}&page_size=50",
+            self.nasa_client.base_url,
+            self.get_temporal_range_for_collection()?
+        );
+        
+        let response = self.http_client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", self.nasa_client.api_key))
+            .send()
+            .await
+            .map_err(|e| AppError::external_service("NASA", &format!("Landsat request failed: {}", e)))?;
+        
+        if response.status().is_success() {
+            let search_response: NASASearchResponse = response.json().await
+                .map_err(|e| AppError::external_service("NASA", &format!("Landsat JSON parse failed: {}", e)))?;
+            
+            for entry in search_response.feed.entry.iter().take(10) {
+                let metadata = self.extract_nasa_metadata(entry)?;
+                
+                let record = RawDataRecord {
+                    id: Uuid::new_v4(),
+                    source_id: source.id,
+                    timestamp: chrono::DateTime::parse_from_rfc3339(&entry.updated)
+                        .map_err(|e| AppError::internal(format!("Failed to parse Landsat timestamp: {}", e)))?
+                        .with_timezone(&Utc),
+                    ingestion_time: Utc::now(),
+                    data: serde_json::to_value(&entry)
+                        .map_err(|e| AppError::internal(format!("Failed to serialize Landsat data: {}", e)))?,
+                    metadata,
+                    quality_flags: vec![],
+                    file_path: None,
+                };
+                
+                records.push(record);
+                sleep(Duration::from_millis(100)).await;
+            }
+        }
+        
+        Ok(records)
     }
 
-    async fn collect_grace_data(&self, _source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
-        // Implementation for GRACE-FO data collection via PO.DAAC
-        Ok(vec![])
+    async fn collect_grace_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
+        let mut records = Vec::new();
+        
+        let url = format!(
+            "{}/search/granules.json?collection_concept_id=GRACE&temporal={}&page_size=20",
+            self.nasa_client.base_url,
+            self.get_temporal_range_for_collection()?
+        );
+        
+        let response = self.http_client
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", self.nasa_client.api_key))
+            .send()
+            .await
+            .map_err(|e| AppError::external_service("NASA", &format!("GRACE request failed: {}", e)))?;
+        
+        if response.status().is_success() {
+            let search_response: NASASearchResponse = response.json().await
+                .map_err(|e| AppError::external_service("NASA", &format!("GRACE JSON parse failed: {}", e)))?;
+            
+            for entry in search_response.feed.entry.iter().take(5) {
+                let metadata = self.extract_nasa_metadata(entry)?;
+                
+                let record = RawDataRecord {
+                    id: Uuid::new_v4(),
+                    source_id: source.id,
+                    timestamp: chrono::DateTime::parse_from_rfc3339(&entry.updated)
+                        .map_err(|e| AppError::internal(format!("Failed to parse GRACE timestamp: {}", e)))?
+                        .with_timezone(&Utc),
+                    ingestion_time: Utc::now(),
+                    data: serde_json::to_value(&entry)
+                        .map_err(|e| AppError::internal(format!("Failed to serialize GRACE data: {}", e)))?,
+                    metadata,
+                    quality_flags: vec![],
+                    file_path: None,
+                };
+                
+                records.push(record);
+                sleep(Duration::from_millis(200)).await;
+            }
+        }
+        
+        Ok(records)
     }
 
     async fn collect_esa_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
@@ -306,29 +425,211 @@ impl SatelliteImagingCollector {
         Ok(records)
     }
 
-    async fn collect_sentinel1_data(&self, _source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
-        // Implementation for Sentinel-1 SAR data
-        Ok(vec![])
+    async fn collect_sentinel1_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
+        let mut records = Vec::new();
+        
+        let query = format!(
+            "platformname:Sentinel-1 AND beginPosition:[NOW-7DAYS TO NOW]"
+        );
+        
+        let url = format!("{}/search?q={}&rows=50&format=json", self.esa_client.base_url, query);
+        
+        let mut request = self.http_client.get(&url);
+        if let (Some(username), Some(password)) = (&self.esa_client.username, &self.esa_client.password) {
+            request = request.basic_auth(username, Some(password));
+        }
+        
+        let response = request.send().await
+            .map_err(|e| AppError::external_service("ESA", &format!("Sentinel-1 request failed: {}", e)))?;
+        
+        if response.status().is_success() {
+            let data: serde_json::Value = response.json().await
+                .map_err(|e| AppError::external_service("ESA", &format!("Sentinel-1 JSON parse failed: {}", e)))?;
+            
+            if let Some(entries) = data.get("feed").and_then(|f| f.get("entry")).and_then(|e| e.as_array()) {
+                for entry in entries.iter().take(5) {
+                    let record = RawDataRecord {
+                        id: Uuid::new_v4(),
+                        source_id: source.id,
+                        timestamp: Utc::now(),
+                        ingestion_time: Utc::now(),
+                        data: entry.clone(),
+                        metadata: self.extract_esa_metadata(entry)?,
+                        quality_flags: vec![],
+                        file_path: None,
+                    };
+                    
+                    records.push(record);
+                    sleep(Duration::from_millis(200)).await;
+                }
+            }
+        }
+        
+        Ok(records)
     }
 
-    async fn collect_sentinel2_data(&self, _source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
-        // Implementation for Sentinel-2 multispectral data
-        Ok(vec![])
+    async fn collect_sentinel2_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
+        let mut records = Vec::new();
+        
+        let query = format!(
+            "platformname:Sentinel-2 AND beginPosition:[NOW-7DAYS TO NOW]"
+        );
+        
+        let url = format!("{}/search?q={}&rows=50&format=json", self.esa_client.base_url, query);
+        
+        let mut request = self.http_client.get(&url);
+        if let (Some(username), Some(password)) = (&self.esa_client.username, &self.esa_client.password) {
+            request = request.basic_auth(username, Some(password));
+        }
+        
+        let response = request.send().await
+            .map_err(|e| AppError::external_service("ESA", &format!("Sentinel-2 request failed: {}", e)))?;
+        
+        if response.status().is_success() {
+            let data: serde_json::Value = response.json().await
+                .map_err(|e| AppError::external_service("ESA", &format!("Sentinel-2 JSON parse failed: {}", e)))?;
+            
+            if let Some(entries) = data.get("feed").and_then(|f| f.get("entry")).and_then(|e| e.as_array()) {
+                for entry in entries.iter().take(10) {
+                    let record = RawDataRecord {
+                        id: Uuid::new_v4(),
+                        source_id: source.id,
+                        timestamp: Utc::now(),
+                        ingestion_time: Utc::now(),
+                        data: entry.clone(),
+                        metadata: self.extract_esa_metadata(entry)?,
+                        quality_flags: vec![],
+                        file_path: None,
+                    };
+                    
+                    records.push(record);
+                    sleep(Duration::from_millis(150)).await;
+                }
+            }
+        }
+        
+        Ok(records)
     }
 
-    async fn collect_sentinel3_data(&self, _source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
-        // Implementation for Sentinel-3 ocean and land data
-        Ok(vec![])
+    async fn collect_sentinel3_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
+        let mut records = Vec::new();
+        
+        let query = format!(
+            "platformname:Sentinel-3 AND beginPosition:[NOW-7DAYS TO NOW]"
+        );
+        
+        let url = format!("{}/search?q={}&rows=30&format=json", self.esa_client.base_url, query);
+        
+        let mut request = self.http_client.get(&url);
+        if let (Some(username), Some(password)) = (&self.esa_client.username, &self.esa_client.password) {
+            request = request.basic_auth(username, Some(password));
+        }
+        
+        let response = request.send().await
+            .map_err(|e| AppError::external_service("ESA", &format!("Sentinel-3 request failed: {}", e)))?;
+        
+        if response.status().is_success() {
+            let data: serde_json::Value = response.json().await
+                .map_err(|e| AppError::external_service("ESA", &format!("Sentinel-3 JSON parse failed: {}", e)))?;
+            
+            if let Some(entries) = data.get("feed").and_then(|f| f.get("entry")).and_then(|e| e.as_array()) {
+                for entry in entries.iter().take(8) {
+                    let record = RawDataRecord {
+                        id: Uuid::new_v4(),
+                        source_id: source.id,
+                        timestamp: Utc::now(),
+                        ingestion_time: Utc::now(),
+                        data: entry.clone(),
+                        metadata: self.extract_esa_metadata(entry)?,
+                        quality_flags: vec![],
+                        file_path: None,
+                    };
+                    
+                    records.push(record);
+                    sleep(Duration::from_millis(200)).await;
+                }
+            }
+        }
+        
+        Ok(records)
     }
 
-    async fn collect_sentinel5p_data(&self, _source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
-        // Implementation for Sentinel-5P atmospheric data
-        Ok(vec![])
+    async fn collect_sentinel5p_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
+        let mut records = Vec::new();
+        
+        let query = format!(
+            "platformname:Sentinel-5 AND beginPosition:[NOW-7DAYS TO NOW]"
+        );
+        
+        let url = format!("{}/search?q={}&rows=20&format=json", self.esa_client.base_url, query);
+        
+        let mut request = self.http_client.get(&url);
+        if let (Some(username), Some(password)) = (&self.esa_client.username, &self.esa_client.password) {
+            request = request.basic_auth(username, Some(password));
+        }
+        
+        let response = request.send().await
+            .map_err(|e| AppError::external_service("ESA", &format!("Sentinel-5P request failed: {}", e)))?;
+        
+        if response.status().is_success() {
+            let data: serde_json::Value = response.json().await
+                .map_err(|e| AppError::external_service("ESA", &format!("Sentinel-5P JSON parse failed: {}", e)))?;
+            
+            if let Some(entries) = data.get("feed").and_then(|f| f.get("entry")).and_then(|e| e.as_array()) {
+                for entry in entries.iter().take(5) {
+                    let record = RawDataRecord {
+                        id: Uuid::new_v4(),
+                        source_id: source.id,
+                        timestamp: Utc::now(),
+                        ingestion_time: Utc::now(),
+                        data: entry.clone(),
+                        metadata: self.extract_esa_metadata(entry)?,
+                        quality_flags: vec![],
+                        file_path: None,
+                    };
+                    
+                    records.push(record);
+                    sleep(Duration::from_millis(300)).await;
+                }
+            }
+        }
+        
+        Ok(records)
     }
 
-    async fn collect_noaa_data(&self, _source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
-        // Implementation for NOAA satellite data (GOES, JPSS, etc.)
-        Ok(vec![])
+    async fn collect_noaa_data(&self, source: &DataSource) -> Result<Vec<RawDataRecord>, AppError> {
+        let mut records = Vec::new();
+        
+        // Implementation for NOAA GOES satellite data
+        let url = format!("{}/goes16/latest", self.noaa_client.base_url);
+        
+        let mut request = self.http_client.get(&url);
+        if let Some(api_key) = &self.noaa_client.api_key {
+            request = request.header("Authorization", format!("Bearer {}", api_key));
+        }
+        
+        let response = request.send().await
+            .map_err(|e| AppError::external_service("NOAA", &format!("NOAA request failed: {}", e)))?;
+        
+        if response.status().is_success() {
+            let data: serde_json::Value = response.json().await
+                .map_err(|e| AppError::external_service("NOAA", &format!("NOAA JSON parse failed: {}", e)))?;
+            
+            let record = RawDataRecord {
+                id: Uuid::new_v4(),
+                source_id: source.id,
+                timestamp: Utc::now(),
+                ingestion_time: Utc::now(),
+                data,
+                metadata: self.extract_noaa_metadata()?,
+                quality_flags: vec![],
+                file_path: None,
+            };
+            
+            records.push(record);
+        }
+        
+        Ok(records)
     }
 
     fn extract_nasa_metadata(&self, entry: &NASAEntry) -> Result<DataMetadata, AppError> {
@@ -370,6 +671,54 @@ impl SatelliteImagingCollector {
             start_time.format("%Y-%m-%dT%H:%M:%SZ"),
             end_time.format("%Y-%m-%dT%H:%M:%SZ")
         ))
+    }
+
+    fn extract_esa_metadata(&self, entry: &serde_json::Value) -> Result<DataMetadata, AppError> {
+        let mut parameters = HashMap::new();
+        let mut units = HashMap::new();
+        
+        if let Some(title) = entry.get("title").and_then(|t| t.as_str()) {
+            parameters.insert("title".to_string(), title.to_string());
+        }
+        
+        if let Some(summary) = entry.get("summary").and_then(|s| s.as_str()) {
+            parameters.insert("summary".to_string(), summary.to_string());
+        }
+        
+        if let Some(id) = entry.get("id").and_then(|i| i.as_str()) {
+            parameters.insert("product_id".to_string(), id.to_string());
+        }
+        
+        Ok(DataMetadata {
+            parameters,
+            units,
+            coordinates: None,
+            elevation: None,
+            instrument_info: Some("Sentinel".to_string()),
+            processing_level: Some("L1C".to_string()),
+            version: Some("1.0".to_string()),
+        })
+    }
+
+    fn extract_noaa_metadata(&self) -> Result<DataMetadata, AppError> {
+        let mut parameters = HashMap::new();
+        let mut units = HashMap::new();
+        
+        parameters.insert("instrument".to_string(), "ABI".to_string());
+        parameters.insert("platform".to_string(), "GOES-16".to_string());
+        
+        units.insert("brightness_temperature".to_string(), "K".to_string());
+        units.insert("cloud_top_pressure".to_string(), "hPa".to_string());
+        
+        Ok(DataMetadata {
+            parameters,
+            units,
+            coordinates: None,
+            elevation: None,
+            instrument_info: Some("GOES-16 ABI".to_string()),
+            processing_level: Some("L2".to_string()),
+            version: Some("1.0".to_string()),
+        })
     }
 }
 
