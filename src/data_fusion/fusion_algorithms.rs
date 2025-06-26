@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use chrono::{DateTime, Utc};
-use nalgebra::{DMatrix, DVector};
-
+use nalgebra::{DMatrix, DVector, SMatrix, SVector};
+use rand::Rng;
 use crate::error::AppError;
+
 #[derive(Debug, Clone)]
 pub enum ApertureType {
     Real {
@@ -25,6 +26,7 @@ pub struct SyntheticApertureProcessor {
     pub azimuth_compression: AzimuthCompressionFilter,
     pub motion_compensation: MotionCompensator,
 }
+
 #[derive(Debug, Clone)]
 pub enum ApertureType {
     Real {
@@ -47,6 +49,7 @@ pub struct SyntheticApertureProcessor {
     pub azimuth_compression: AzimuthCompressionFilter,
     pub motion_compensation: MotionCompensator,
 }
+
 use super::{SensorType, TimestampedMeasurement, SensorMeasurementBundle};
 
 // ACTUAL ALGORITHMS FROM USER'S fusion.md FILE
@@ -1218,7 +1221,7 @@ impl FusionAlgorithm for FactorGraphFusion {
         let agricultural_insights = self.extract_agricultural_insights(&optimization_result).await?;
 
         Ok(FusionResult {
-            fused_state: self.extract_fused_state(&optimization_result)?,
+            fused_estimate: self.extract_fused_state(&optimization_result)?,
             confidence_metrics: self.compute_confidence_metrics(&optimization_result)?,
             algorithm_used: AlgorithmType::FactorGraph,
             temporal_alignment_quality: TemporalQualityMetrics::default(),
@@ -1391,7 +1394,7 @@ impl FusionAlgorithm for ParticleFlowFilter {
         let agricultural_insights = filter.extract_agricultural_insights().await?;
 
         Ok(FusionResult {
-            fused_state,
+            fused_estimate: fused_state,
             confidence_metrics,
             algorithm_used: AlgorithmType::ParticleFlow,
             temporal_alignment_quality: TemporalQualityMetrics::default(),
@@ -1577,7 +1580,7 @@ impl FusionAlgorithm for ByzantineFaultTolerantFusion {
         ).await?;
 
         Ok(FusionResult {
-            fused_state: consensus.state.into(),
+            fused_estimate: consensus.state.into(),
             confidence_metrics: ConfidenceMetrics {
                 overall_confidence: consensus.consensus_confidence,
                 sensor_consensus: consensus.agricultural_reliability,
@@ -1678,7 +1681,7 @@ impl FusionAlgorithm for ManifoldConstrainedFusion {
         let agricultural_insights = self.extract_manifold_agricultural_insights(&fused_estimate).await?;
 
         Ok(FusionResult {
-            fused_state: fused_estimate,
+            fused_estimate,
             confidence_metrics: self.compute_manifold_confidence(&manifold_coordinates)?,
             algorithm_used: AlgorithmType::ManifoldConstrained,
             temporal_alignment_quality: TemporalQualityMetrics::default(),
@@ -1882,6 +1885,8 @@ pub enum AlgorithmType {
     ByzantineFaultTolerant,
     ManifoldConstrained,
     NashEquilibrium,
+    QuantumSuperposition,
+    EMCalibration,
     InformationTheoreticSelection,
     ExtendedKalmanFilter,
 }

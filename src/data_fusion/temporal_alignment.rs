@@ -37,22 +37,18 @@ pub struct TemporalAlignmentEngine {
 /// Atomic clock delay model with comprehensive error sources
 #[derive(Debug, Clone)]
 pub struct AtomicClockDelayModel {
-    // Known systematic delays
+    /// Known systematic delays
     pub cable_delay: f64,           // nanoseconds - physical cable propagation
     pub processing_delay: f64,      // nanoseconds - ADC + processing pipeline
     pub temperature_coefficient: f64, // ns/°C - thermal effects
     pub aging_rate: f64,            // ns/day - crystal aging
     pub relativistic_correction: f64, // ns - gravitational time dilation
     
-    // Dynamic components
+    /// Dynamic components
     pub temperature_history: CircularBuffer<(f64, f64)>, // (time, temp)
     pub frequency_drift_model: DriftPredictor,
     pub environmental_corrections: HashMap<String, f64>,
-    
-    // Calibration metadata
     pub last_calibration: f64,
-    pub calibration_uncertainty: f64,
-    pub frequency_stability: f64,  // Allan variance
 }
 
 impl AtomicClockDelayModel {
@@ -126,13 +122,11 @@ impl AtomicClockDelayModel {
     /// Get prediction uncertainty based on model confidence
     pub fn get_uncertainty(&self) -> f64 {
         // Combine calibration uncertainty with model uncertainties
-        let calibration_component = self.calibration_uncertainty;
-        let aging_component = (Utc::now().timestamp() as f64 - self.last_calibration) / 86400.0 * 0.1;
-        let temperature_component = 0.5; // ns, typical temperature uncertainty
-        let environmental_component = 1.0; // ns, environmental model uncertainty
+        let calibration_component = 0.5; // ns, typical calibration uncertainty
+        let temp_uncertainty = self.temperature_coefficient * 0.1; // ±0.1°C temp uncertainty
+        let aging_uncertainty = self.aging_rate * 0.01; // 1% aging uncertainty
         
-        (calibration_component.powi(2) + aging_component.powi(2) + 
-         temperature_component.powi(2) + environmental_component.powi(2)).sqrt()
+        (calibration_component.powi(2) + temp_uncertainty.powi(2) + aging_uncertainty.powi(2)).sqrt()
     }
 }
 
@@ -885,8 +879,6 @@ impl TemporalAlignmentEngine {
             frequency_drift_model: DriftPredictor::new(),
             environmental_corrections: HashMap::new(),
             last_calibration: Utc::now().timestamp() as f64,
-            calibration_uncertainty: 1.0,  // ns
-            frequency_stability: 1e-12,
         });
         
         // Weather station delay model
@@ -900,8 +892,6 @@ impl TemporalAlignmentEngine {
             frequency_drift_model: DriftPredictor::new(),
             environmental_corrections: HashMap::new(),
             last_calibration: Utc::now().timestamp() as f64,
-            calibration_uncertainty: 5.0,
-            frequency_stability: 1e-10,
         });
         
         // Add models for other sensor types...
