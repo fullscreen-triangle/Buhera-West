@@ -17,6 +17,7 @@ pub mod phantom_satellites;
 pub mod phantom_reality_4d;
 pub mod phantom_alignment;
 pub mod measurement;
+pub mod reconstruction;
 
 // Re-exports
 pub use temporal_alignment::*;
@@ -24,6 +25,7 @@ pub use fusion_algorithms::*;
 pub use fuzzy_evidence::*;
 pub use optimization::*;
 pub use bayesian_network::*;
+pub use measurement::*;
 
 /// Core Data Fusion Engine - The Heart of Agricultural Weather Intelligence
 /// 
