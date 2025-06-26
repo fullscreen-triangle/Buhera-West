@@ -13,6 +13,9 @@ pub mod fusion_algorithms;
 pub mod fuzzy_evidence;
 pub mod optimization;
 pub mod bayesian_network;
+pub mod phantom_satellites;
+pub mod phantom_reality_4d;
+pub mod phantom_alignment;
 
 // Re-exports
 pub use temporal_alignment::*;

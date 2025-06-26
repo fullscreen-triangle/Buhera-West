@@ -4,6 +4,10 @@ use chrono::{DateTime, Utc};
 use nalgebra::{DMatrix, DVector};
 use crate::error::AppError;
 use super::{TimestampedMeasurement, SensorType, SensorMeasurementBundle};
+use lru::LruCache;
+use std::sync::Arc;
+use std::num::NonZeroUsize;
+use splines::{Interpolation, Key, Spline};
 
 /// Advanced temporal alignment engine with nanosecond precision capabilities
 /// 

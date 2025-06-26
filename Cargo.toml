@@ -1,3 +1,87 @@
+pub struct SignalEnhancedWeatherSystem {
+    pub signal_atmospheric_network: GlobalSignalAtmosphericNetwork,
+    pub traditional_weather_models: Vec<Box<dyn WeatherModel>>,
+    pub signal_weather_fusion_engine: SignalWeatherFusionEngine,
+    pub enhanced_prediction_models: Vec<Box<dyn EnhancedPredictionModel>>,
+}
+
+impl SignalEnhancedWeatherSystem {
+    pub fn create_enhanced_weather_forecast(&mut self,
+                                          forecast_horizon_hours: f64) -> EnhancedWeatherForecast {
+        
+        // Step 1: Get current atmospheric state from signal network
+        let current_atmospheric_state = self.signal_atmospheric_network
+            .create_global_atmospheric_map(SystemTime::now().as_secs_f64());
+        
+        // Step 2: Get traditional weather model predictions
+        let traditional_forecasts = self.traditional_weather_models
+            .iter()
+            .map(|model| model.predict_weather(forecast_horizon_hours))
+            .collect::<Vec<_>>();
+        
+        // Step 3: Fuse signal-derived data with traditional models
+        let fused_forecast = self.signal_weather_fusion_engine.fuse_signal_and_traditional_data(
+            &current_atmospheric_state,
+            &traditional_forecasts
+        );
+        
+        // Step 4: Apply enhanced prediction models
+        let enhanced_forecast = self.enhanced_prediction_models
+            .iter()
+            .map(|model| model.predict_with_signal_enhancement(&fused_forecast))
+            .fold(fused_forecast, |acc, prediction| acc.merge_with(prediction));
+        
+        EnhancedWeatherForecast {
+            traditional_forecast_component: traditional_forecasts,
+            signal_derived_component: current_atmospheric_state,
+            enhanced_prediction: enhanced_forecast,
+            forecast_improvement_metrics: self.compute_improvement_metrics(&enhanced_forecast),
+            signal_contribution_percentage: self.compute_signal_contribution(&enhanced_forecast),
+        }
+    }
+}
+pub struct SignalEnhancedWeatherSystem {
+    pub signal_atmospheric_network: GlobalSignalAtmosphericNetwork,
+    pub traditional_weather_models: Vec<Box<dyn WeatherModel>>,
+    pub signal_weather_fusion_engine: SignalWeatherFusionEngine,
+    pub enhanced_prediction_models: Vec<Box<dyn EnhancedPredictionModel>>,
+}
+
+impl SignalEnhancedWeatherSystem {
+    pub fn create_enhanced_weather_forecast(&mut self,
+                                          forecast_horizon_hours: f64) -> EnhancedWeatherForecast {
+        
+        // Step 1: Get current atmospheric state from signal network
+        let current_atmospheric_state = self.signal_atmospheric_network
+            .create_global_atmospheric_map(SystemTime::now().as_secs_f64());
+        
+        // Step 2: Get traditional weather model predictions
+        let traditional_forecasts = self.traditional_weather_models
+            .iter()
+            .map(|model| model.predict_weather(forecast_horizon_hours))
+            .collect::<Vec<_>>();
+        
+        // Step 3: Fuse signal-derived data with traditional models
+        let fused_forecast = self.signal_weather_fusion_engine.fuse_signal_and_traditional_data(
+            &current_atmospheric_state,
+            &traditional_forecasts
+        );
+        
+        // Step 4: Apply enhanced prediction models
+        let enhanced_forecast = self.enhanced_prediction_models
+            .iter()
+            .map(|model| model.predict_with_signal_enhancement(&fused_forecast))
+            .fold(fused_forecast, |acc, prediction| acc.merge_with(prediction));
+        
+        EnhancedWeatherForecast {
+            traditional_forecast_component: traditional_forecasts,
+            signal_derived_component: current_atmospheric_state,
+            enhanced_prediction: enhanced_forecast,
+            forecast_improvement_metrics: self.compute_improvement_metrics(&enhanced_forecast),
+            signal_contribution_percentage: self.compute_signal_contribution(&enhanced_forecast),
+        }
+    }
+}
 [package]
 name = "buhera-west"
 version = "0.1.0"
@@ -62,6 +146,25 @@ statrs = "0.16"
 linfa = { version = "0.7", features = ["serde"] }
 linfa-linear = "0.7"
 smartcore = { version = "0.3", features = ["serde"] }
+
+# Random number generation for algorithms
+rand = "0.8"
+rand_distr = "0.4"
+
+# Optimization libraries
+argmin = "0.8"
+argmin-math = "0.3"
+
+# Advanced numerical methods
+splines = "4.0"
+rustfft = "6.1"
+
+# LRU cache for temporal alignment
+lru = "0.12"
+
+# For collections and data structures
+indexmap = "2.1"
+smallvec = "1.11"
 
 # Optimization and ML
 candle-core = "0.3"

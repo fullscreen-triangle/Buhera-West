@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use nalgebra::{DMatrix, DVector};
 use tokio::sync::RwLock;
 use rand::Rng;
+use rand_distr::{Normal, Distribution};
 
 use crate::error::AppError;
 use super::{
@@ -836,418 +837,558 @@ impl Erf for f64 {
     }
 }
 
-/// EM-Based Multi-Sensor Calibration
+/// EM-Based Multi-Sensor Calibration Algorithm
 /// Learns sensor biases, noise parameters, and correlations simultaneously
 pub struct EMCalibration {
-    max_iterations: usize,
-    convergence_threshold: f64,
-    parameters: CalibrationParameters,
+    /// Current parameter estimates: biases, noise, correlations
+    pub parameters: CalibrationParameters,
+    /// Convergence threshold for EM algorithm
+    pub convergence_threshold: f64,
+    /// Maximum number of EM iterations
+    pub max_iterations: usize,
+    /// Learning rate for parameter updates
+    pub learning_rate: f64,
 }
 
 #[derive(Debug, Clone)]
 pub struct CalibrationParameters {
+    /// Sensor-specific bias estimates
     pub sensor_biases: HashMap<SensorType, f64>,
-    pub noise_parameters: HashMap<SensorType, NoiseModel>,
+    /// Sensor-specific noise parameters (variance)
+    pub noise_parameters: HashMap<SensorType, f64>,
+    /// Cross-sensor correlation matrix
     pub correlation_matrix: DMatrix<f64>,
-    pub convergence_history: Vec<f64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct NoiseModel {
-    pub variance: f64,
-    pub bias: f64,
-    pub drift_rate: f64,
-    pub temperature_coefficient: f64,
+    /// Sensor reliability weights
+    pub reliability_weights: HashMap<SensorType, f64>,
 }
 
 impl EMCalibration {
-    pub fn new(max_iterations: usize, convergence_threshold: f64) -> Self {
+    pub fn new(sensors: &[SensorType]) -> Self {
+        let mut sensor_biases = HashMap::new();
+        let mut noise_parameters = HashMap::new();
+        let mut reliability_weights = HashMap::new();
+        
+        // Initialize parameters
+        for sensor in sensors {
+            sensor_biases.insert(*sensor, 0.0);
+            noise_parameters.insert(*sensor, 1.0);
+            reliability_weights.insert(*sensor, 1.0);
+        }
+        
+        let n_sensors = sensors.len();
+        let correlation_matrix = DMatrix::identity(n_sensors, n_sensors);
+        
         Self {
-            max_iterations,
-            convergence_threshold,
             parameters: CalibrationParameters {
-                sensor_biases: HashMap::new(),
-                noise_parameters: HashMap::new(),
-                correlation_matrix: DMatrix::identity(1, 1),
-                convergence_history: Vec::new(),
+                sensor_biases,
+                noise_parameters,
+                correlation_matrix,
+                reliability_weights,
             },
+            convergence_threshold: 1e-6,
+            max_iterations: 100,
+            learning_rate: 0.1,
         }
     }
     
-    /// Run EM algorithm for sensor calibration
-    pub fn calibrate(&mut self, measurements: &HashMap<SensorType, Vec<TimestampedMeasurement>>) -> Result<CalibrationResult, CalibrationError> {
-        // Initialize parameters if not already done
-        self.initialize_parameters(measurements)?;
-        
+    /// Execute EM algorithm for sensor calibration
+    pub fn calibrate(&mut self, measurement_sets: &[HashMap<SensorType, Vec<TimestampedMeasurement>>]) -> Result<CalibrationResult, OptimizationError> {
         let mut log_likelihood = f64::NEG_INFINITY;
+        let mut prev_log_likelihood = f64::NEG_INFINITY;
         
         for iteration in 0..self.max_iterations {
             // E-Step: Compute posterior over latent states
-            let posterior_states = self.e_step(measurements)?;
+            let posterior_states = self.expectation_step(measurement_sets)?;
             
             // M-Step: Update parameters
-            let new_parameters = self.m_step(measurements, &posterior_states)?;
-            let new_log_likelihood = self.compute_log_likelihood(measurements, &posterior_states);
+            self.maximization_step(measurement_sets, &posterior_states)?;
+            
+            // Compute log-likelihood for convergence check
+            log_likelihood = self.compute_log_likelihood(measurement_sets, &posterior_states)?;
             
             // Check convergence
-            if (new_log_likelihood - log_likelihood).abs() < self.convergence_threshold {
-                self.parameters.convergence_history.push(new_log_likelihood);
+            if iteration > 0 && (log_likelihood - prev_log_likelihood).abs() < self.convergence_threshold {
                 return Ok(CalibrationResult {
                     converged: true,
                     iterations: iteration + 1,
-                    final_log_likelihood: new_log_likelihood,
-                    parameters: self.parameters.clone(),
+                    final_log_likelihood: log_likelihood,
+                    calibrated_parameters: self.parameters.clone(),
                 });
             }
             
-            // Update parameters
-            self.parameters = new_parameters;
-            log_likelihood = new_log_likelihood;
-            self.parameters.convergence_history.push(log_likelihood);
+            prev_log_likelihood = log_likelihood;
         }
         
-        Err(CalibrationError::ConvergenceFailed)
+        Ok(CalibrationResult {
+            converged: false,
+            iterations: self.max_iterations,
+            final_log_likelihood: log_likelihood,
+            calibrated_parameters: self.parameters.clone(),
+        })
     }
     
-    fn initialize_parameters(&mut self, measurements: &HashMap<SensorType, Vec<TimestampedMeasurement>>) -> Result<(), CalibrationError> {
-        let num_sensors = measurements.len();
-        
-        // Initialize sensor biases to zero
-        for sensor_type in measurements.keys() {
-            self.parameters.sensor_biases.insert(*sensor_type, 0.0);
-            
-            // Initialize noise model with empirical estimates
-            let sensor_measurements = measurements.get(sensor_type).unwrap();
-            let noise_model = self.estimate_initial_noise_model(sensor_measurements);
-            self.parameters.noise_parameters.insert(*sensor_type, noise_model);
-        }
-        
-        // Initialize correlation matrix
-        self.parameters.correlation_matrix = DMatrix::identity(num_sensors, num_sensors);
-        
-        Ok(())
-    }
-    
-    fn estimate_initial_noise_model(&self, measurements: &[TimestampedMeasurement]) -> NoiseModel {
-        if measurements.is_empty() {
-            return NoiseModel {
-                variance: 1.0,
-                bias: 0.0,
-                drift_rate: 0.0,
-                temperature_coefficient: 0.0,
-            };
-        }
-        
-        // Extract values for analysis
-        let values: Vec<f64> = measurements.iter()
-            .filter_map(|m| match &m.value {
-                MeasurementValue::Scalar(v) => Some(*v),
-                MeasurementValue::Temperature { value, .. } => Some(*value),
-                MeasurementValue::Humidity(v) => Some(*v),
-                MeasurementValue::Pressure { value, .. } => Some(*value),
-                _ => None,
-            })
-            .collect();
-        
-        if values.is_empty() {
-            return NoiseModel {
-                variance: 1.0,
-                bias: 0.0,
-                drift_rate: 0.0,
-                temperature_coefficient: 0.0,
-            };
-        }
-        
-        // Compute empirical statistics
-        let mean = values.iter().sum::<f64>() / values.len() as f64;
-        let variance = values.iter()
-            .map(|v| (v - mean).powi(2))
-            .sum::<f64>() / values.len() as f64;
-        
-        // Estimate drift rate from temporal trend
-        let drift_rate = self.estimate_drift_rate(&measurements);
-        
-        NoiseModel {
-            variance,
-            bias: mean,
-            drift_rate,
-            temperature_coefficient: 0.01, // Default small temperature coefficient
-        }
-    }
-    
-    fn estimate_drift_rate(&self, measurements: &[TimestampedMeasurement]) -> f64 {
-        if measurements.len() < 2 {
-            return 0.0;
-        }
-        
-        // Simple linear regression to estimate drift
-        let mut time_values = Vec::new();
-        for measurement in measurements {
-            if let MeasurementValue::Scalar(value) = &measurement.value {
-                time_values.push((measurement.timestamp, *value));
-            }
-        }
-        
-        if time_values.len() < 2 {
-            return 0.0;
-        }
-        
-        // Linear regression: y = ax + b, return 'a' (slope)
-        let n = time_values.len() as f64;
-        let sum_x: f64 = time_values.iter().map(|(t, _)| *t).sum();
-        let sum_y: f64 = time_values.iter().map(|(_, v)| *v).sum();
-        let sum_xy: f64 = time_values.iter().map(|(t, v)| t * v).sum();
-        let sum_x2: f64 = time_values.iter().map(|(t, _)| t * t).sum();
-        
-        let denominator = n * sum_x2 - sum_x * sum_x;
-        if denominator.abs() < 1e-10 {
-            0.0
-        } else {
-            (n * sum_xy - sum_x * sum_y) / denominator
-        }
-    }
-    
-    fn e_step(&self, measurements: &HashMap<SensorType, Vec<TimestampedMeasurement>>) -> Result<Vec<PosteriorState>, CalibrationError> {
+    /// E-Step: Compute posterior distributions over latent true states
+    fn expectation_step(&self, measurement_sets: &[HashMap<SensorType, Vec<TimestampedMeasurement>>]) -> Result<Vec<StatePosteriori>, OptimizationError> {
         let mut posterior_states = Vec::new();
         
-        // For each measurement timestamp, compute posterior state
-        let all_timestamps = self.collect_all_timestamps(measurements);
-        
-        for timestamp in all_timestamps {
-            let posterior_state = self.compute_posterior_at_time(measurements, timestamp)?;
-            posterior_states.push(posterior_state);
+        for measurement_set in measurement_sets {
+            // For each time step, compute posterior over true state given measurements and current parameters
+            let posterior = self.gaussian_belief_propagation(measurement_set)?;
+            posterior_states.push(posterior);
         }
         
         Ok(posterior_states)
     }
     
-    fn collect_all_timestamps(&self, measurements: &HashMap<SensorType, Vec<TimestampedMeasurement>>) -> Vec<f64> {
-        let mut timestamps = Vec::new();
+    /// M-Step: Update parameter estimates
+    fn maximization_step(&mut self, measurement_sets: &[HashMap<SensorType, Vec<TimestampedMeasurement>>], posterior_states: &[StatePosteriori]) -> Result<(), OptimizationError> {
+        // Update sensor biases
+        self.update_sensor_biases(measurement_sets, posterior_states)?;
         
-        for sensor_measurements in measurements.values() {
-            for measurement in sensor_measurements {
-                timestamps.push(measurement.timestamp);
-            }
-        }
+        // Update noise parameters
+        self.update_noise_parameters(measurement_sets, posterior_states)?;
         
-        timestamps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-        timestamps.dedup_by(|a, b| (a - b).abs() < 1e-6);
+        // Update cross-correlation matrix
+        self.update_correlation_matrix(measurement_sets, posterior_states)?;
         
-        timestamps
+        Ok(())
     }
     
-    fn compute_posterior_at_time(&self, measurements: &HashMap<SensorType, Vec<TimestampedMeasurement>>, timestamp: f64) -> Result<PosteriorState, CalibrationError> {
+    fn gaussian_belief_propagation(&self, measurements: &HashMap<SensorType, Vec<TimestampedMeasurement>>) -> Result<StatePosteriori, OptimizationError> {
         // Simplified Gaussian belief propagation
-        let mut state_estimate = StateEstimate {
-            mean: DVector::zeros(3), // 3D position for simplicity
-            covariance: DMatrix::identity(3, 3),
-        };
+        let mut mean_estimate = 0.0;
+        let mut precision_sum = 0.0;
+        let mut measurement_count = 0;
         
-        // Find measurements close to this timestamp
         for (sensor_type, sensor_measurements) in measurements {
-            if let Some(closest_measurement) = self.find_closest_measurement(sensor_measurements, timestamp) {
-                // Update state estimate with this measurement
-                self.update_state_with_measurement(&mut state_estimate, *sensor_type, closest_measurement)?;
+            let bias = self.parameters.sensor_biases.get(sensor_type).unwrap_or(&0.0);
+            let noise_var = self.parameters.noise_parameters.get(sensor_type).unwrap_or(&1.0);
+            let reliability = self.parameters.reliability_weights.get(sensor_type).unwrap_or(&1.0);
+            
+            for measurement in sensor_measurements {
+                if let MeasurementValue::Scalar(value) = measurement.value {
+                    let corrected_value = value - bias;
+                    let precision = reliability / noise_var;
+                    
+                    mean_estimate += precision * corrected_value;
+                    precision_sum += precision;
+                    measurement_count += 1;
+                }
             }
         }
         
-        Ok(PosteriorState {
-            timestamp,
-            state: state_estimate,
-            likelihood: 1.0, // Simplified
+        if precision_sum > 0.0 {
+            mean_estimate /= precision_sum;
+        }
+        
+        let variance = if precision_sum > 0.0 { 1.0 / precision_sum } else { 1.0 };
+        
+        Ok(StatePosteriori {
+            mean: mean_estimate,
+            variance,
+            measurement_count,
         })
     }
     
-    fn find_closest_measurement(&self, measurements: &[TimestampedMeasurement], target_time: f64) -> Option<&TimestampedMeasurement> {
-        measurements.iter()
-            .min_by(|a, b| (a.timestamp - target_time).abs().partial_cmp(&(b.timestamp - target_time).abs()).unwrap_or(std::cmp::Ordering::Equal))
-    }
-    
-    fn update_state_with_measurement(&self, state: &mut StateEstimate, sensor_type: SensorType, measurement: &TimestampedMeasurement) -> Result<(), CalibrationError> {
-        let noise_model = self.parameters.noise_parameters.get(&sensor_type)
-            .ok_or(CalibrationError::MissingNoiseModel)?;
+    fn update_sensor_biases(&mut self, measurement_sets: &[HashMap<SensorType, Vec<TimestampedMeasurement>>], posterior_states: &[StatePosteriori]) -> Result<(), OptimizationError> {
+        let mut bias_updates = HashMap::new();
+        let mut bias_counts = HashMap::new();
         
-        let bias = self.parameters.sensor_biases.get(&sensor_type).unwrap_or(&0.0);
+        for (measurement_set, posterior) in measurement_sets.iter().zip(posterior_states.iter()) {
+            for (sensor_type, measurements) in measurement_set {
+                let mut residual_sum = 0.0;
+                let mut count = 0;
+                
+                for measurement in measurements {
+                    if let MeasurementValue::Scalar(value) = measurement.value {
+                        let residual = value - posterior.mean;
+                        residual_sum += residual;
+                        count += 1;
+                    }
+                }
+                
+                if count > 0 {
+                    let avg_residual = residual_sum / count as f64;
+                    *bias_updates.entry(*sensor_type).or_insert(0.0) += avg_residual;
+                    *bias_counts.entry(*sensor_type).or_insert(0) += 1;
+                }
+            }
+        }
         
-        // Extract measurement value
-        let measurement_value = match &measurement.value {
-            MeasurementValue::Scalar(v) => *v - bias,
-            MeasurementValue::Position(lat, _, _) => *lat - bias, // Use latitude
-            _ => return Ok(()), // Skip unsupported measurement types
-        };
-        
-        // Simple Kalman filter update (simplified)
-        let measurement_noise = noise_model.variance;
-        let observation_matrix = DVector::from_vec(vec![1.0, 0.0, 0.0]); // Observe first state
-        
-        // Innovation
-        let predicted_measurement = observation_matrix.dot(&state.mean);
-        let innovation = measurement_value - predicted_measurement;
-        
-        // Innovation covariance
-        let innovation_covariance = observation_matrix.dot(&(&state.covariance * &observation_matrix)) + measurement_noise;
-        
-        if innovation_covariance > 1e-10 {
-            // Kalman gain
-            let kalman_gain = (&state.covariance * &observation_matrix) / innovation_covariance;
+        // Apply bias updates
+        for (sensor_type, total_bias) in bias_updates {
+            let count = bias_counts.get(&sensor_type).unwrap_or(&1);
+            let new_bias = total_bias / (*count as f64);
+            let current_bias = self.parameters.sensor_biases.get(&sensor_type).unwrap_or(&0.0);
             
-            // Update state
-            state.mean += &kalman_gain * innovation;
-            let identity = DMatrix::identity(3, 3);
-            state.covariance = (&identity - &kalman_gain * observation_matrix.transpose()) * &state.covariance;
+            // Exponential moving average update
+            let updated_bias = (1.0 - self.learning_rate) * current_bias + self.learning_rate * new_bias;
+            self.parameters.sensor_biases.insert(sensor_type, updated_bias);
         }
         
         Ok(())
     }
     
-    fn m_step(&self, measurements: &HashMap<SensorType, Vec<TimestampedMeasurement>>, posterior_states: &[PosteriorState]) -> Result<CalibrationParameters, CalibrationError> {
-        let mut new_parameters = self.parameters.clone();
+    fn update_noise_parameters(&mut self, measurement_sets: &[HashMap<SensorType, Vec<TimestampedMeasurement>>], posterior_states: &[StatePosteriori]) -> Result<(), OptimizationError> {
+        let mut variance_updates = HashMap::new();
+        let mut variance_counts = HashMap::new();
         
-        // Update sensor biases and noise parameters
-        for (sensor_type, sensor_measurements) in measurements {
-            let (new_bias, new_noise) = self.update_sensor_parameters(*sensor_type, sensor_measurements, posterior_states)?;
-            new_parameters.sensor_biases.insert(*sensor_type, new_bias);
-            new_parameters.noise_parameters.insert(*sensor_type, new_noise);
-        }
-        
-        // Update correlation matrix
-        new_parameters.correlation_matrix = self.update_correlation_matrix(measurements, posterior_states)?;
-        
-        Ok(new_parameters)
-    }
-    
-    fn update_sensor_parameters(&self, sensor_type: SensorType, measurements: &[TimestampedMeasurement], posterior_states: &[PosteriorState]) -> Result<(f64, NoiseModel), CalibrationError> {
-        let mut residuals = Vec::new();
-        
-        // Compute residuals for bias and noise estimation
-        for measurement in measurements {
-            if let Some(posterior_state) = self.find_posterior_at_time(posterior_states, measurement.timestamp) {
-                let predicted_value = posterior_state.state.mean[0]; // Simplified: use first state component
+        for (measurement_set, posterior) in measurement_sets.iter().zip(posterior_states.iter()) {
+            for (sensor_type, measurements) in measurement_set {
+                let bias = self.parameters.sensor_biases.get(sensor_type).unwrap_or(&0.0);
+                let mut squared_residuals = 0.0;
+                let mut count = 0;
                 
-                let measurement_value = match &measurement.value {
-                    MeasurementValue::Scalar(v) => *v,
-                    MeasurementValue::Position(lat, _, _) => *lat,
-                    _ => continue,
-                };
+                for measurement in measurements {
+                    if let MeasurementValue::Scalar(value) = measurement.value {
+                        let corrected_value = value - bias;
+                        let residual = corrected_value - posterior.mean;
+                        squared_residuals += residual.powi(2);
+                        count += 1;
+                    }
+                }
                 
-                residuals.push(measurement_value - predicted_value);
-            }
-        }
-        
-        if residuals.is_empty() {
-            return Ok((0.0, NoiseModel {
-                variance: 1.0,
-                bias: 0.0,
-                drift_rate: 0.0,
-                temperature_coefficient: 0.0,
-            }));
-        }
-        
-        // Estimate bias as mean of residuals
-        let new_bias = residuals.iter().sum::<f64>() / residuals.len() as f64;
-        
-        // Estimate variance from residuals
-        let corrected_residuals: Vec<f64> = residuals.iter().map(|r| r - new_bias).collect();
-        let new_variance = corrected_residuals.iter()
-            .map(|r| r.powi(2))
-            .sum::<f64>() / corrected_residuals.len() as f64;
-        
-        let new_noise = NoiseModel {
-            variance: new_variance,
-            bias: new_bias,
-            drift_rate: self.estimate_drift_rate(measurements),
-            temperature_coefficient: 0.01, // Simplified
-        };
-        
-        Ok((new_bias, new_noise))
-    }
-    
-    fn find_posterior_at_time(&self, posterior_states: &[PosteriorState], timestamp: f64) -> Option<&PosteriorState> {
-        posterior_states.iter()
-            .min_by(|a, b| (a.timestamp - timestamp).abs().partial_cmp(&(b.timestamp - timestamp).abs()).unwrap_or(std::cmp::Ordering::Equal))
-    }
-    
-    fn update_correlation_matrix(&self, measurements: &HashMap<SensorType, Vec<TimestampedMeasurement>>, _posterior_states: &[PosteriorState]) -> Result<DMatrix<f64>, CalibrationError> {
-        let sensor_types: Vec<SensorType> = measurements.keys().cloned().collect();
-        let n = sensor_types.len();
-        let mut correlation_matrix = DMatrix::identity(n, n);
-        
-        // Compute empirical correlations between sensors
-        for i in 0..n {
-            for j in i+1..n {
-                let correlation = self.compute_sensor_correlation(
-                    measurements.get(&sensor_types[i]).unwrap(),
-                    measurements.get(&sensor_types[j]).unwrap()
-                );
-                correlation_matrix[(i, j)] = correlation;
-                correlation_matrix[(j, i)] = correlation;
-            }
-        }
-        
-        Ok(correlation_matrix)
-    }
-    
-    fn compute_sensor_correlation(&self, measurements1: &[TimestampedMeasurement], measurements2: &[TimestampedMeasurement]) -> f64 {
-        let mut paired_values = Vec::new();
-        
-        // Find temporally matched measurements
-        for m1 in measurements1 {
-            if let Some(m2) = self.find_closest_measurement(measurements2, m1.timestamp) {
-                if (m1.timestamp - m2.timestamp).abs() < 1.0 { // Within 1 second
-                    let v1 = match &m1.value {
-                        MeasurementValue::Scalar(v) => *v,
-                        MeasurementValue::Position(lat, _, _) => *lat,
-                        _ => continue,
-                    };
-                    let v2 = match &m2.value {
-                        MeasurementValue::Scalar(v) => *v,
-                        MeasurementValue::Position(lat, _, _) => *lat,
-                        _ => continue,
-                    };
-                    paired_values.push((v1, v2));
+                if count > 0 {
+                    let empirical_variance = squared_residuals / count as f64;
+                    *variance_updates.entry(*sensor_type).or_insert(0.0) += empirical_variance;
+                    *variance_counts.entry(*sensor_type).or_insert(0) += 1;
                 }
             }
         }
         
-        if paired_values.len() < 2 {
-            return 0.0;
+        // Apply variance updates
+        for (sensor_type, total_variance) in variance_updates {
+            let count = variance_counts.get(&sensor_type).unwrap_or(&1);
+            let new_variance = total_variance / (*count as f64);
+            let current_variance = self.parameters.noise_parameters.get(&sensor_type).unwrap_or(&1.0);
+            
+            // Exponential moving average update
+            let updated_variance = (1.0 - self.learning_rate) * current_variance + self.learning_rate * new_variance;
+            self.parameters.noise_parameters.insert(sensor_type, updated_variance.max(1e-6)); // Avoid zero variance
         }
         
-        // Compute Pearson correlation
-        let n = paired_values.len() as f64;
-        let sum_x: f64 = paired_values.iter().map(|(x, _)| *x).sum();
-        let sum_y: f64 = paired_values.iter().map(|(_, y)| *y).sum();
-        let sum_xy: f64 = paired_values.iter().map(|(x, y)| x * y).sum();
-        let sum_x2: f64 = paired_values.iter().map(|(x, _)| x * x).sum();
-        let sum_y2: f64 = paired_values.iter().map(|(_, y)| y * y).sum();
+        Ok(())
+    }
+    
+    fn update_correlation_matrix(&mut self, measurement_sets: &[HashMap<SensorType, Vec<TimestampedMeasurement>>], posterior_states: &[StatePosteriori]) -> Result<(), OptimizationError> {
+        // Compute empirical correlations between sensor residuals
+        let sensors: Vec<SensorType> = self.parameters.sensor_biases.keys().copied().collect();
+        let n_sensors = sensors.len();
         
-        let numerator = n * sum_xy - sum_x * sum_y;
-        let denominator = ((n * sum_x2 - sum_x * sum_x) * (n * sum_y2 - sum_y * sum_y)).sqrt();
+        if n_sensors < 2 {
+            return Ok(());
+        }
         
-        if denominator > 1e-10 {
-            numerator / denominator
-        } else {
-            0.0
+        let mut residual_matrix = DMatrix::zeros(measurement_sets.len(), n_sensors);
+        
+        // Collect residuals for each sensor at each time step
+        for (time_idx, (measurement_set, posterior)) in measurement_sets.iter().zip(posterior_states.iter()).enumerate() {
+            for (sensor_idx, sensor_type) in sensors.iter().enumerate() {
+                if let Some(measurements) = measurement_set.get(sensor_type) {
+                    let bias = self.parameters.sensor_biases.get(sensor_type).unwrap_or(&0.0);
+                    let mut residual_sum = 0.0;
+                    let mut count = 0;
+                    
+                    for measurement in measurements {
+                        if let MeasurementValue::Scalar(value) = measurement.value {
+                            let corrected_value = value - bias;
+                            residual_sum += corrected_value - posterior.mean;
+                            count += 1;
+                        }
+                    }
+                    
+                    if count > 0 {
+                        residual_matrix[(time_idx, sensor_idx)] = residual_sum / count as f64;
+                    }
+                }
+            }
+        }
+        
+        // Compute correlation matrix
+        let new_correlation = self.compute_correlation_matrix(&residual_matrix)?;
+        
+        // Update with exponential moving average
+        self.parameters.correlation_matrix = (1.0 - self.learning_rate) * &self.parameters.correlation_matrix + 
+                                            self.learning_rate * &new_correlation;
+        
+        Ok(())
+    }
+    
+    fn compute_correlation_matrix(&self, residual_matrix: &DMatrix<f64>) -> Result<DMatrix<f64>, OptimizationError> {
+        let n_sensors = residual_matrix.ncols();
+        let mut correlation = DMatrix::identity(n_sensors, n_sensors);
+        
+        for i in 0..n_sensors {
+            for j in i+1..n_sensors {
+                let col_i = residual_matrix.column(i);
+                let col_j = residual_matrix.column(j);
+                
+                let mean_i = col_i.mean();
+                let mean_j = col_j.mean();
+                
+                let mut covariance = 0.0;
+                let mut var_i = 0.0;
+                let mut var_j = 0.0;
+                
+                for k in 0..residual_matrix.nrows() {
+                    let diff_i = col_i[k] - mean_i;
+                    let diff_j = col_j[k] - mean_j;
+                    
+                    covariance += diff_i * diff_j;
+                    var_i += diff_i.powi(2);
+                    var_j += diff_j.powi(2);
+                }
+                
+                let std_i = (var_i / residual_matrix.nrows() as f64).sqrt();
+                let std_j = (var_j / residual_matrix.nrows() as f64).sqrt();
+                
+                if std_i > 1e-10 && std_j > 1e-10 {
+                    let corr = covariance / (residual_matrix.nrows() as f64 * std_i * std_j);
+                    correlation[(i, j)] = corr;
+                    correlation[(j, i)] = corr;
+                }
+            }
+        }
+        
+        Ok(correlation)
+    }
+    
+    fn compute_log_likelihood(&self, measurement_sets: &[HashMap<SensorType, Vec<TimestampedMeasurement>>], posterior_states: &[StatePosteriori]) -> Result<f64, OptimizationError> {
+        let mut log_likelihood = 0.0;
+        
+        for (measurement_set, posterior) in measurement_sets.iter().zip(posterior_states.iter()) {
+            for (sensor_type, measurements) in measurement_set {
+                let bias = self.parameters.sensor_biases.get(sensor_type).unwrap_or(&0.0);
+                let noise_var = self.parameters.noise_parameters.get(sensor_type).unwrap_or(&1.0);
+                
+                for measurement in measurements {
+                    if let MeasurementValue::Scalar(value) = measurement.value {
+                        let corrected_value = value - bias;
+                        let residual = corrected_value - posterior.mean;
+                        
+                        // Gaussian log-likelihood
+                        log_likelihood -= 0.5 * (residual.powi(2) / noise_var + noise_var.ln() + (2.0 * std::f64::consts::PI).ln());
+                    }
+                }
+            }
+        }
+        
+        Ok(log_likelihood)
+    }
+}
+
+/// Levenberg-Marquardt Optimizer for nonlinear least squares
+pub struct LevenbergMarquardtOptimizer {
+    pub damping_parameter: f64,
+    pub max_iterations: usize,
+    pub convergence_threshold: f64,
+    pub damping_update_factor: f64,
+}
+
+impl LevenbergMarquardtOptimizer {
+    pub fn new() -> Self {
+        Self {
+            damping_parameter: 1e-3,
+            max_iterations: 100,
+            convergence_threshold: 1e-6,
+            damping_update_factor: 10.0,
         }
     }
     
-    fn compute_log_likelihood(&self, _measurements: &HashMap<SensorType, Vec<TimestampedMeasurement>>, posterior_states: &[PosteriorState]) -> f64 {
-        // Simplified log-likelihood computation
-        posterior_states.iter().map(|state| state.likelihood.ln()).sum()
+    /// Optimize nonlinear least squares problem
+    pub fn optimize<F, J>(&mut self, 
+                         initial_params: &DVector<f64>,
+                         residual_func: F,
+                         jacobian_func: J) -> Result<OptimizationResult, OptimizationError>
+    where
+        F: Fn(&DVector<f64>) -> Result<DVector<f64>, OptimizationError>,
+        J: Fn(&DVector<f64>) -> Result<DMatrix<f64>, OptimizationError>,
+    {
+        let mut current_params = initial_params.clone();
+        let mut current_cost = f64::INFINITY;
+        let mut lambda = self.damping_parameter;
+        
+        for iteration in 0..self.max_iterations {
+            // Compute residuals and Jacobian
+            let residuals = residual_func(&current_params)?;
+            let jacobian = jacobian_func(&current_params)?;
+            
+            // Compute cost
+            let cost = 0.5 * residuals.dot(&residuals);
+            
+            // Check convergence
+            if iteration > 0 && (current_cost - cost).abs() < self.convergence_threshold {
+                return Ok(OptimizationResult {
+                    final_parameters: current_params,
+                    final_cost: cost,
+                    iterations: iteration,
+                    converged: true,
+                });
+            }
+            
+            // Compute Hessian approximation: H = J^T * J
+            let hessian = jacobian.transpose() * &jacobian;
+            let gradient = jacobian.transpose() * &residuals;
+            
+            // Add Levenberg-Marquardt damping
+            let damped_hessian = &hessian + lambda * DMatrix::identity(hessian.nrows(), hessian.ncols());
+            
+            // Solve for parameter update
+            match damped_hessian.lu().solve(&(-gradient)) {
+                Some(delta) => {
+                    let test_params = &current_params + &delta;
+                    let test_residuals = residual_func(&test_params)?;
+                    let test_cost = 0.5 * test_residuals.dot(&test_residuals);
+                    
+                    if test_cost < cost {
+                        // Accept update
+                        current_params = test_params;
+                        current_cost = cost;
+                        lambda /= self.damping_update_factor;
+                    } else {
+                        // Reject update, increase damping
+                        lambda *= self.damping_update_factor;
+                    }
+                },
+                None => {
+                    lambda *= self.damping_update_factor;
+                    if lambda > 1e6 {
+                        return Err(OptimizationError::SingularMatrix);
+                    }
+                }
+            }
+        }
+        
+        Ok(OptimizationResult {
+            final_parameters: current_params,
+            final_cost: current_cost,
+            iterations: self.max_iterations,
+            converged: false,
+        })
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct StateEstimate {
-    pub mean: DVector<f64>,
-    pub covariance: DMatrix<f64>,
+/// Agricultural-specific objectives for multi-objective optimization
+pub struct AgriculturalObjectives {
+    pub crop_model: CropModel,
+    pub weather_impact_model: WeatherImpactModel,
+    pub resource_efficiency_model: ResourceEfficiencyModel,
 }
 
+impl AgriculturalObjectives {
+    pub fn new() -> Self {
+        Self {
+            crop_model: CropModel::new(),
+            weather_impact_model: WeatherImpactModel::new(),
+            resource_efficiency_model: ResourceEfficiencyModel::new(),
+        }
+    }
+    
+    /// Evaluate agricultural objectives for given parameters
+    pub fn evaluate(&self, parameters: &DVector<f64>) -> Result<DVector<f64>, OptimizationError> {
+        let mut objectives = DVector::zeros(3);
+        
+        // Objective 1: Maximize yield
+        objectives[0] = self.crop_model.predict_yield(parameters)?;
+        
+        // Objective 2: Minimize water usage
+        objectives[1] = -self.resource_efficiency_model.water_efficiency(parameters)?; // Negative for minimization
+        
+        // Objective 3: Minimize cost
+        objectives[2] = -self.resource_efficiency_model.cost_efficiency(parameters)?; // Negative for minimization
+        
+        Ok(objectives)
+    }
+}
+
+/// Crop yield prediction model
+pub struct CropModel {
+    /// Growth parameters
+    pub growth_parameters: HashMap<String, f64>,
+    /// Environmental stress thresholds
+    pub stress_thresholds: HashMap<String, (f64, f64)>,
+}
+
+impl CropModel {
+    pub fn new() -> Self {
+        let mut growth_parameters = HashMap::new();
+        growth_parameters.insert("temperature_optimum".to_string(), 25.0);
+        growth_parameters.insert("moisture_optimum".to_string(), 0.6);
+        growth_parameters.insert("light_requirement".to_string(), 300.0);
+        
+        let mut stress_thresholds = HashMap::new();
+        stress_thresholds.insert("temperature".to_string(), (10.0, 35.0));
+        stress_thresholds.insert("moisture".to_string(), (0.2, 0.9));
+        
+        Self {
+            growth_parameters,
+            stress_thresholds,
+        }
+    }
+    
+    pub fn predict_yield(&self, parameters: &DVector<f64>) -> Result<f64, OptimizationError> {
+        if parameters.len() < 3 {
+            return Err(OptimizationError::InvalidParameters("Insufficient parameters for yield prediction".to_string()));
+        }
+        
+        let temperature = parameters[0];
+        let moisture = parameters[1];
+        let light = parameters[2];
+        
+        // Simplified yield model based on environmental factors
+        let temp_opt = self.growth_parameters.get("temperature_optimum").unwrap_or(&25.0);
+        let moisture_opt = self.growth_parameters.get("moisture_optimum").unwrap_or(&0.6);
+        let light_req = self.growth_parameters.get("light_requirement").unwrap_or(&300.0);
+        
+        let temp_factor = 1.0 - ((temperature - temp_opt) / 10.0).powi(2);
+        let moisture_factor = 1.0 - ((moisture - moisture_opt) / 0.5).powi(2);
+        let light_factor = (light / light_req).min(1.0);
+        
+        let yield_potential = temp_factor.max(0.0) * moisture_factor.max(0.0) * light_factor.max(0.0);
+        
+        Ok(yield_potential * 100.0) // Scale to realistic yield values
+    }
+}
+
+pub struct WeatherImpactModel;
+
+impl WeatherImpactModel {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+pub struct ResourceEfficiencyModel;
+
+impl ResourceEfficiencyModel {
+    pub fn new() -> Self {
+        Self
+    }
+    
+    pub fn water_efficiency(&self, parameters: &DVector<f64>) -> Result<f64, OptimizationError> {
+        // Simplified water efficiency calculation
+        if parameters.len() < 2 {
+            return Ok(0.5);
+        }
+        
+        let irrigation_intensity = parameters[1];
+        Ok(1.0 / (1.0 + irrigation_intensity))
+    }
+    
+    pub fn cost_efficiency(&self, parameters: &DVector<f64>) -> Result<f64, OptimizationError> {
+        // Simplified cost efficiency calculation
+        let total_cost = parameters.iter().sum::<f64>();
+        Ok(1.0 / (1.0 + total_cost * 0.1))
+    }
+}
+
+// Supporting structures
+
 #[derive(Debug, Clone)]
-pub struct PosteriorState {
-    pub timestamp: f64,
-    pub state: StateEstimate,
-    pub likelihood: f64,
+pub struct StatePosteriori {
+    pub mean: f64,
+    pub variance: f64,
+    pub measurement_count: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -1255,597 +1396,76 @@ pub struct CalibrationResult {
     pub converged: bool,
     pub iterations: usize,
     pub final_log_likelihood: f64,
-    pub parameters: CalibrationParameters,
+    pub calibrated_parameters: CalibrationParameters,
 }
 
-/// Levenberg-Marquardt Optimizer for nonlinear least squares
-pub struct LevenbergMarquardtOptimizer {
-    max_iterations: usize,
-    tolerance: f64,
-    initial_lambda: f64,
-    lambda_factor: f64,
+#[derive(Debug, Clone)]
+pub struct OptimizationResult {
+    pub final_parameters: DVector<f64>,
+    pub final_cost: f64,
+    pub iterations: usize,
+    pub converged: bool,
 }
 
-impl LevenbergMarquardtOptimizer {
-    pub fn new() -> Self {
+pub struct GaussianProcess {
+    dimension: usize,
+    kernel: RBFKernel,
+    noise_variance: f64,
+}
+
+impl GaussianProcess {
+    pub fn new(dimension: usize) -> Self {
         Self {
-            max_iterations: 100,
-            tolerance: 1e-6,
-            initial_lambda: 0.001,
-            lambda_factor: 10.0,
+            dimension,
+            kernel: RBFKernel::new(1.0, 1.0),
+            noise_variance: 1e-6,
         }
     }
     
-    pub fn optimize<F, J>(&self, 
-                         initial_params: DVector<f64>, 
-                         residual_fn: F, 
-                         jacobian_fn: J) -> Result<OptimizationResult, OptimizationError>
-    where
-        F: Fn(&DVector<f64>) -> DVector<f64>,
-        J: Fn(&DVector<f64>) -> DMatrix<f64>,
-    {
-        let mut params = initial_params;
-        let mut lambda = self.initial_lambda;
-        let mut cost = f64::INFINITY;
-        let mut cost_history = Vec::new();
-        
-        for iteration in 0..self.max_iterations {
-            // Compute residuals and Jacobian
-            let residuals = residual_fn(&params);
-            let jacobian = jacobian_fn(&params);
-            let new_cost = residuals.norm_squared();
-            
-            // Check convergence
-            if iteration > 0 && (cost - new_cost).abs() < self.tolerance {
-                return Ok(OptimizationResult {
-                    converged: true,
-                    iterations: iteration,
-                    final_parameters: params,
-                    final_cost: new_cost,
-                    cost_history,
-                });
-            }
-            
-            // Compute Hessian approximation and gradient
-            let hessian = jacobian.transpose() * &jacobian;
-            let gradient = jacobian.transpose() * &residuals;
-            
-            // Levenberg-Marquardt damping
-            let mut damped_hessian = hessian.clone();
-            for i in 0..damped_hessian.nrows() {
-                damped_hessian[(i, i)] += lambda;
-            }
-            
-            // Solve for parameter update
-            match damped_hessian.lu().solve(&(-gradient)) {
-                Some(delta) => {
-                    let candidate_params = &params + &delta;
-                    let candidate_residuals = residual_fn(&candidate_params);
-                    let candidate_cost = candidate_residuals.norm_squared();
-                    
-                    if candidate_cost < new_cost {
-                        // Accept update
-                        params = candidate_params;
-                        cost = candidate_cost;
-                        lambda /= self.lambda_factor;
-                    } else {
-                        // Reject update, increase damping
-                        lambda *= self.lambda_factor;
-                        cost = new_cost;
-                    }
-                },
-                None => {
-                    lambda *= self.lambda_factor;
-                    cost = new_cost;
-                }
-            }
-            
-            cost_history.push(cost);
-        }
-        
-        Err(OptimizationError::MaxIterationsReached)
+    pub fn update(&mut self, _observations: &[(DVector<f64>, f64)]) -> Result<(), OptimizationError> {
+        // Update GP hyperparameters (simplified)
+        Ok(())
+    }
+    
+    pub fn predict(&self, _point: &DVector<f64>) -> Result<(f64, f64), OptimizationError> {
+        // Simplified GP prediction - returns (mean, variance)
+        Ok((0.0, 1.0))
     }
 }
 
-/// Bayesian Optimizer for black-box optimization
-pub struct BayesianOptimizer {
-    acquisition_function: AcquisitionFunction,
-    gaussian_process: GaussianProcess,
-    bounds: Vec<(f64, f64)>,
+pub struct RBFKernel {
+    length_scale: f64,
+    signal_variance: f64,
+}
+
+impl RBFKernel {
+    pub fn new(length_scale: f64, signal_variance: f64) -> Self {
+        Self { length_scale, signal_variance }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub enum AcquisitionFunction {
     ExpectedImprovement,
-    UpperConfidenceBound { kappa: f64 },
-    ProbabilityOfImprovement,
-}
-
-pub struct GaussianProcess {
-    kernel: KernelFunction,
-    noise_variance: f64,
-    length_scale: f64,
-    signal_variance: f64,
+    UpperConfidenceBound,
 }
 
 #[derive(Debug, Clone)]
-pub enum KernelFunction {
-    RBF,
-    Matern32,
-    Matern52,
-}
-
-impl BayesianOptimizer {
-    pub fn new(bounds: Vec<(f64, f64)>) -> Self {
-        Self {
-            acquisition_function: AcquisitionFunction::ExpectedImprovement,
-            gaussian_process: GaussianProcess {
-                kernel: KernelFunction::RBF,
-                noise_variance: 0.01,
-                length_scale: 1.0,
-                signal_variance: 1.0,
-            },
-            bounds,
-        }
-    }
-    
-    pub fn optimize<F>(&mut self, 
-                      objective_fn: F, 
-                      n_iterations: usize, 
-                      n_initial_samples: usize) -> Result<BayesianOptimizationResult, OptimizationError>
-    where
-        F: Fn(&DVector<f64>) -> f64,
-    {
-        let mut observations = Vec::new();
-        
-        // Initial random sampling
-        for _ in 0..n_initial_samples {
-            let sample = self.random_sample();
-            let value = objective_fn(&sample);
-            observations.push((sample, value));
-        }
-        
-        let mut best_value = observations.iter().map(|(_, v)| *v).fold(f64::NEG_INFINITY, f64::max);
-        let mut best_params = observations.iter()
-            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
-            .unwrap().0.clone();
-        
-        // Bayesian optimization iterations
-        for iteration in 0..n_iterations {
-            // Fit Gaussian Process
-            self.fit_gaussian_process(&observations)?;
-            
-            // Optimize acquisition function
-            let next_sample = self.optimize_acquisition_function(&observations)?;
-            let next_value = objective_fn(&next_sample);
-            
-            observations.push((next_sample.clone(), next_value));
-            
-            // Update best solution
-            if next_value > best_value {
-                best_value = next_value;
-                best_params = next_sample;
-            }
-        }
-        
-        Ok(BayesianOptimizationResult {
-            best_parameters: best_params,
-            best_value,
-            iteration_history: observations,
-            converged: true,
-        })
-    }
-    
-    fn random_sample(&self) -> DVector<f64> {
-        let mut rng = rand::thread_rng();
-        let mut sample = Vec::new();
-        
-        for (min_val, max_val) in &self.bounds {
-            sample.push(rng.gen_range(*min_val..*max_val));
-        }
-        
-        DVector::from_vec(sample)
-    }
-    
-    fn fit_gaussian_process(&mut self, observations: &[(DVector<f64>, f64)]) -> Result<(), OptimizationError> {
-        // Simplified GP fitting - in practice would use more sophisticated methods
-        if observations.is_empty() {
-            return Err(OptimizationError::InsufficientData);
-        }
-        
-        // Simple hyperparameter optimization could be added here
-        Ok(())
-    }
-    
-    fn optimize_acquisition_function(&self, observations: &[(DVector<f64>, f64)]) -> Result<DVector<f64>, OptimizationError> {
-        let mut best_acquisition = f64::NEG_INFINITY;
-        let mut best_sample = self.random_sample();
-        
-        // Simple grid search for acquisition optimization
-        let n_candidates = 1000;
-        for _ in 0..n_candidates {
-            let candidate = self.random_sample();
-            let acquisition_value = self.evaluate_acquisition(&candidate, observations)?;
-            
-            if acquisition_value > best_acquisition {
-                best_acquisition = acquisition_value;
-                best_sample = candidate;
-            }
-        }
-        
-        Ok(best_sample)
-    }
-    
-    fn evaluate_acquisition(&self, candidate: &DVector<f64>, observations: &[(DVector<f64>, f64)]) -> Result<f64, OptimizationError> {
-        let (mean, variance) = self.predict_gp(candidate, observations)?;
-        
-        match self.acquisition_function {
-            AcquisitionFunction::ExpectedImprovement => {
-                let best_observed = observations.iter().map(|(_, v)| *v).fold(f64::NEG_INFINITY, f64::max);
-                let improvement = mean - best_observed;
-                let std_dev = variance.sqrt();
-                
-                if std_dev > 1e-10 {
-                    let z = improvement / std_dev;
-                    improvement * self.normal_cdf(z) + std_dev * self.normal_pdf(z)
-                } else {
-                    improvement.max(0.0)
-                }
-            },
-            AcquisitionFunction::UpperConfidenceBound { kappa } => {
-                mean + kappa * variance.sqrt()
-            },
-            AcquisitionFunction::ProbabilityOfImprovement => {
-                let best_observed = observations.iter().map(|(_, v)| *v).fold(f64::NEG_INFINITY, f64::max);
-                let improvement = mean - best_observed;
-                let std_dev = variance.sqrt();
-                
-                if std_dev > 1e-10 {
-                    self.normal_cdf(improvement / std_dev)
-                } else if improvement > 0.0 {
-                    1.0
-                } else {
-                    0.0
-                }
-            },
-        }
-    }
-    
-    fn predict_gp(&self, candidate: &DVector<f64>, observations: &[(DVector<f64>, f64)]) -> Result<(f64, f64), OptimizationError> {
-        // Simplified GP prediction
-        if observations.is_empty() {
-            return Ok((0.0, self.gaussian_process.signal_variance));
-        }
-        
-        // Simple nearest neighbor prediction for demonstration
-        let (nearest_x, nearest_y) = observations.iter()
-            .min_by(|a, b| {
-                let dist_a = (&a.0 - candidate).norm();
-                let dist_b = (&b.0 - candidate).norm();
-                dist_a.partial_cmp(&dist_b).unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .unwrap();
-        
-        let distance = (nearest_x - candidate).norm();
-        let similarity = (-distance / self.gaussian_process.length_scale).exp();
-        
-        let mean = *nearest_y * similarity;
-        let variance = self.gaussian_process.signal_variance * (1.0 - similarity) + self.gaussian_process.noise_variance;
-        
-        Ok((mean, variance))
-    }
-    
-    fn normal_cdf(&self, x: f64) -> f64 {
-        0.5 * (1.0 + libm::erf(x / std::f64::consts::SQRT_2))
-    }
-    
-    fn normal_pdf(&self, x: f64) -> f64 {
-        (1.0 / (2.0 * std::f64::consts::PI).sqrt()) * (-0.5 * x * x).exp()
-    }
-}
-
-/// Multi-objective optimization for agricultural applications
-pub struct MultiObjectiveOptimizer {
-    objectives: Vec<ObjectiveFunction>,
-    constraints: Vec<Constraint>,
-    pareto_archive: Vec<ParetoSolution>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ObjectiveFunction {
-    pub name: String,
-    pub weight: f64,
-    pub minimize: bool, // true for minimization, false for maximization
-}
-
-#[derive(Debug, Clone)]
-pub struct Constraint {
-    pub name: String,
-    pub lower_bound: Option<f64>,
-    pub upper_bound: Option<f64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ParetoSolution {
+pub struct Solution {
     pub parameters: DVector<f64>,
-    pub objectives: Vec<f64>,
-    pub dominates: Vec<usize>, // indices of solutions this dominates
-    pub dominated_by: usize,   // number of solutions that dominate this
-}
-
-impl MultiObjectiveOptimizer {
-    pub fn new() -> Self {
-        Self {
-            objectives: Vec::new(),
-            constraints: Vec::new(),
-            pareto_archive: Vec::new(),
-        }
-    }
-    
-    pub fn add_objective(&mut self, name: String, weight: f64, minimize: bool) {
-        self.objectives.push(ObjectiveFunction { name, weight, minimize });
-    }
-    
-    pub fn add_constraint(&mut self, name: String, lower_bound: Option<f64>, upper_bound: Option<f64>) {
-        self.constraints.push(Constraint { name, lower_bound, upper_bound });
-    }
-    
-    pub fn optimize<F>(&mut self, 
-                      objective_functions: F, 
-                      population_size: usize, 
-                      generations: usize) -> Result<MultiObjectiveResult, OptimizationError>
-    where
-        F: Fn(&DVector<f64>) -> Vec<f64>,
-    {
-        // Initialize population
-        let mut population = self.initialize_population(population_size);
-        
-        for generation in 0..generations {
-            // Evaluate objectives for each individual
-            for individual in &mut population {
-                individual.objectives = objective_functions(&individual.parameters);
-            }
-            
-            // Compute Pareto dominance
-            self.compute_dominance(&mut population);
-            
-            // Update Pareto archive
-            self.update_pareto_archive(&population);
-            
-            // Selection and reproduction (simplified NSGA-II)
-            population = self.select_and_reproduce(population);
-        }
-        
-        Ok(MultiObjectiveResult {
-            pareto_front: self.pareto_archive.clone(),
-            final_population: population,
-            generations_completed: generations,
-        })
-    }
-    
-    fn initialize_population(&self, size: usize) -> Vec<ParetoSolution> {
-        let mut rng = rand::thread_rng();
-        let mut population = Vec::new();
-        
-        for _ in 0..size {
-            // Random initialization - in practice would use better initialization
-            let params = DVector::from_fn(self.objectives.len(), |_, _| rng.gen_range(-10.0..10.0));
-            
-            population.push(ParetoSolution {
-                parameters: params,
-                objectives: Vec::new(),
-                dominates: Vec::new(),
-                dominated_by: 0,
-            });
-        }
-        
-        population
-    }
-    
-    fn compute_dominance(&self, population: &mut [ParetoSolution]) {
-        for i in 0..population.len() {
-            population[i].dominates.clear();
-            population[i].dominated_by = 0;
-            
-            for j in 0..population.len() {
-                if i != j {
-                    if self.dominates(&population[i], &population[j]) {
-                        population[i].dominates.push(j);
-                    } else if self.dominates(&population[j], &population[i]) {
-                        population[i].dominated_by += 1;
-                    }
-                }
-            }
-        }
-    }
-    
-    fn dominates(&self, solution_a: &ParetoSolution, solution_b: &ParetoSolution) -> bool {
-        let mut at_least_one_better = false;
-        
-        for (i, objective) in self.objectives.iter().enumerate() {
-            let a_val = solution_a.objectives.get(i).unwrap_or(&0.0);
-            let b_val = solution_b.objectives.get(i).unwrap_or(&0.0);
-            
-            if objective.minimize {
-                if a_val > b_val {
-                    return false; // A is worse in this objective
-                } else if a_val < b_val {
-                    at_least_one_better = true;
-                }
-            } else {
-                if a_val < b_val {
-                    return false; // A is worse in this objective
-                } else if a_val > b_val {
-                    at_least_one_better = true;
-                }
-            }
-        }
-        
-        at_least_one_better
-    }
-    
-    fn update_pareto_archive(&mut self, population: &[ParetoSolution]) {
-        // Add non-dominated solutions to archive
-        for solution in population {
-            if solution.dominated_by == 0 {
-                self.pareto_archive.push(solution.clone());
-            }
-        }
-        
-        // Remove dominated solutions from archive
-        let mut i = 0;
-        while i < self.pareto_archive.len() {
-            let mut dominated = false;
-            for j in 0..self.pareto_archive.len() {
-                if i != j && self.dominates(&self.pareto_archive[j], &self.pareto_archive[i]) {
-                    dominated = true;
-                    break;
-                }
-            }
-            
-            if dominated {
-                self.pareto_archive.remove(i);
-            } else {
-                i += 1;
-            }
-        }
-    }
-    
-    fn select_and_reproduce(&self, mut population: Vec<ParetoSolution>) -> Vec<ParetoSolution> {
-        // Simplified selection: keep best half and generate new half
-        population.sort_by(|a, b| a.dominated_by.cmp(&b.dominated_by));
-        
-        let keep_size = population.len() / 2;
-        population.truncate(keep_size);
-        
-        // Simple reproduction by mutation
-        let mut new_population = population.clone();
-        let mut rng = rand::thread_rng();
-        
-        for solution in &mut population {
-            let mut mutated = solution.clone();
-            
-            // Add small random mutations
-            for i in 0..mutated.parameters.len() {
-                mutated.parameters[i] += rng.gen_range(-0.1..0.1);
-            }
-            
-            new_population.push(mutated);
-        }
-        
-        new_population
-    }
-}
-
-/// Result structures
-#[derive(Debug, Clone)]
-pub struct OptimizationResult {
-    pub converged: bool,
-    pub iterations: usize,
-    pub final_parameters: DVector<f64>,
-    pub final_cost: f64,
-    pub cost_history: Vec<f64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct BayesianOptimizationResult {
-    pub best_parameters: DVector<f64>,
-    pub best_value: f64,
-    pub iteration_history: Vec<(DVector<f64>, f64)>,
-    pub converged: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct MultiObjectiveResult {
-    pub pareto_front: Vec<ParetoSolution>,
-    pub final_population: Vec<ParetoSolution>,
-    pub generations_completed: usize,
-}
-
-/// Error types
-#[derive(Debug, thiserror::Error)]
-pub enum CalibrationError {
-    #[error("Convergence failed after maximum iterations")]
-    ConvergenceFailed,
-    #[error("Missing noise model for sensor")]
-    MissingNoiseModel,
-    #[error("Insufficient data for calibration")]
-    InsufficientData,
+    pub objectives: DVector<f64>,
+    pub rank: usize,
+    pub crowding_distance: f64,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum OptimizationError {
-    #[error("Maximum iterations reached without convergence")]
-    MaxIterationsReached,
-    #[error("Insufficient data for optimization")]
-    InsufficientData,
     #[error("Singular matrix encountered")]
     SingularMatrix,
-    #[error("Invalid bounds or constraints")]
-    InvalidConstraints,
-}
-
-/// Agricultural-specific optimization objectives
-pub struct AgriculturalObjectives;
-
-impl AgriculturalObjectives {
-    /// Yield maximization objective
-    pub fn yield_maximization(weather_params: &DVector<f64>, crop_model: &CropModel) -> f64 {
-        crop_model.predict_yield(weather_params)
-    }
-    
-    /// Water use efficiency objective
-    pub fn water_efficiency(irrigation_params: &DVector<f64>, weather_forecast: &DVector<f64>) -> f64 {
-        let irrigation_amount = irrigation_params.sum();
-        let rainfall = weather_forecast[0]; // Simplified
-        
-        // Efficiency is yield per unit water used
-        let total_water = irrigation_amount + rainfall;
-        if total_water > 0.0 {
-            1.0 / total_water // Simplified efficiency metric
-        } else {
-            0.0
-        }
-    }
-    
-    /// Resource cost minimization
-    pub fn cost_minimization(resource_usage: &DVector<f64>, prices: &DVector<f64>) -> f64 {
-        -resource_usage.dot(prices) // Negative for minimization
-    }
-}
-
-/// Simple crop model for agricultural optimization
-pub struct CropModel {
-    pub growth_parameters: DVector<f64>,
-    pub stress_thresholds: DVector<f64>,
-}
-
-impl CropModel {
-    pub fn new() -> Self {
-        Self {
-            growth_parameters: DVector::from_vec(vec![1.0, 0.8, 0.6, 0.4]), // Temperature, humidity, radiation, nutrients
-            stress_thresholds: DVector::from_vec(vec![35.0, 90.0, 1000.0, 100.0]), // Max values before stress
-        }
-    }
-    
-    pub fn predict_yield(&self, weather_params: &DVector<f64>) -> f64 {
-        let mut yield_potential = 1.0;
-        
-        for i in 0..weather_params.len().min(self.growth_parameters.len()) {
-            let param_value = weather_params[i];
-            let growth_factor = self.growth_parameters[i];
-            let stress_threshold = self.stress_thresholds[i];
-            
-            // Apply growth factor
-            yield_potential *= growth_factor * param_value.min(stress_threshold) / stress_threshold;
-            
-            // Apply stress penalty if threshold exceeded
-            if param_value > stress_threshold {
-                let stress_ratio = param_value / stress_threshold;
-                yield_potential *= 1.0 / stress_ratio;
-            }
-        }
-        
-        yield_potential.max(0.0)
-    }
+    #[error("Invalid parameters: {0}")]
+    InvalidParameters(String),
+    #[error("Convergence failed")]
+    ConvergenceFailed,
+    #[error("Optimization error: {0}")]
+    OptimizationFailed(String),
 } 
