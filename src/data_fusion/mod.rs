@@ -16,6 +16,7 @@ pub mod bayesian_network;
 pub mod phantom_satellites;
 pub mod phantom_reality_4d;
 pub mod phantom_alignment;
+pub mod measurement;
 
 // Re-exports
 pub use temporal_alignment::*;
