@@ -20,6 +20,8 @@ pub mod computer_vision_integration;
 pub mod comprehensive_integration_engine;
 pub mod crossfilter_engine;
 pub mod crossfilter_web_interface;
+pub mod groundwater_detection;
+pub mod solar_reflectance_atmospheric;
 
 pub use core_types::*;
 pub use gps_differential::*;
