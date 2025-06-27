@@ -5,8 +5,16 @@ use num_complex::Complex64;
 
 pub mod gps_differential;
 pub mod core_types;
+pub mod oscillatory_framework;
+pub mod entropy_engineering;
+pub mod categorical_predeterminism;
+pub mod temporal_predetermination;
 
 pub use core_types::*;
+pub use oscillatory_framework::*;
+pub use entropy_engineering::*;
+pub use categorical_predeterminism::*;
+pub use temporal_predetermination::*;
 
 // Core geometric and physical types
 #[derive(Debug, Clone, Serialize, Deserialize)]
