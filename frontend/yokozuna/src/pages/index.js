@@ -15,7 +15,7 @@ import MapboxGeocoder from '@mapbox/mapbox-gl-geocoder';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import '@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css';
 
-const Network = dynamic(() => import('@/components/satellites/Network'), {
+const SunEarthMoon = dynamic(() => import('@/components/glb/SunEarthMoon'), {
 ssr: false,
 });
 
@@ -128,12 +128,12 @@ return (
     <article
       className={`flex min-h-screen items-center text-dark dark:text-light sm:items-start`}
     >
-      <Layout className="!pt-0 md:!pt-16 sm:!pt-16">
+      <Layout className="!pt-0 md:!pt-16 sm:!pt-16 overflow-hidden subpixel-antialiased">
         <div className="flex w-full items-start justify-between md:flex-col">
-          <div className="w-1/2 md:inline-block md:w-full">
-            <Network className="h-auto w-full" />
+          <div style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+            <SunEarthMoon className="h-auto w-full pointer-events-none" />
           </div>
-          <div className="flex w-1/2 flex-col items-center self-center lg:w-full lg:text-center">
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'transparent', zIndex: 2, overflow: 'auto' }}>
             <AnimatedText
               text="High Precision Weather Analysis and Prediction for Southern Africa"
               className="!text-left !text-6xl xl:!text-5xl lg:!text-center lg:!text-6xl md:!text-5xl sm:!text-3xl"

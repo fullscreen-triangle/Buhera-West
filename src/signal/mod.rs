@@ -22,6 +22,8 @@ pub mod crossfilter_engine;
 pub mod crossfilter_web_interface;
 pub mod groundwater_detection;
 pub mod solar_reflectance_atmospheric;
+pub mod mineral_detection_localization;
+pub mod hardware_controlled_reflectance;
 
 pub use core_types::*;
 pub use gps_differential::*;
