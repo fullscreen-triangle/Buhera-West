@@ -9,6 +9,8 @@ pub mod oscillatory_framework;
 pub mod entropy_engineering;
 pub mod categorical_predeterminism;
 pub mod temporal_predetermination;
+pub mod segment_aware_atmospheric;
+pub mod helicopter_inspired_atmospheric;
 
 pub use core_types::*;
 pub use oscillatory_framework::*;
