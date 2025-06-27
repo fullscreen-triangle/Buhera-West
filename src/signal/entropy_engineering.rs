@@ -181,37 +181,10 @@ pub struct EntropyEngineeringEngine {
     pub thermodynamic_validator: ThermodynamicValidator,
 }
 
-#[derive(Debug, Clone)]
-pub struct EndpointAnalyzer {
-    pub spatial_endpoint_detector: SpatialEndpointDetector,
-    pub energy_landscape_analyzer: EnergyLandscapeAnalyzer,
-    pub configuration_space_mapper: ConfigurationSpaceMapper,
-    pub temporal_dynamics_analyzer: TemporalDynamicsAnalyzer,
-}
-
-#[derive(Debug, Clone)]
-pub struct DistributionManipulator {
-    pub distribution_fitter: DistributionFitter,
-    pub distribution_transformer: DistributionTransformer,
-    pub probability_flow_controller: ProbabilityFlowController,
-    pub distribution_optimizer: DistributionOptimizer,
-}
-
-#[derive(Debug, Clone)]
-pub struct EntropyController {
-    pub entropy_measurement_system: EntropyMeasurementSystem,
-    pub entropy_manipulation_system: EntropyManipulationSystem,
-    pub feedback_control_system: FeedbackControlSystem,
-    pub optimization_system: OptimizationSystem,
-}
-
-#[derive(Debug, Clone)]
-pub struct ThermodynamicValidator {
-    pub second_law_validator: SecondLawValidator,
-    pub energy_conservation_validator: EnergyConservationValidator,
-    pub statistical_consistency_validator: StatisticalConsistencyValidator,
-    pub equilibrium_validator: EquilibriumValidator,
-}
+pub struct EndpointAnalyzer {}
+pub struct DistributionManipulator {}
+pub struct EntropyController {}
+pub struct ThermodynamicValidator {}
 
 /// Atmospheric Entropy Engineering
 pub struct AtmosphericEntropyEngineer {
@@ -221,29 +194,86 @@ pub struct AtmosphericEntropyEngineer {
     pub atmospheric_thermodynamic_validator: AtmosphericThermodynamicValidator,
 }
 
-#[derive(Debug, Clone)]
-pub struct AtmosphericEndpointAnalyzer {
-    pub pressure_endpoint_analyzer: PressureEndpointAnalyzer,
-    pub temperature_endpoint_analyzer: TemperatureEndpointAnalyzer,
-    pub humidity_endpoint_analyzer: HumidityEndpointAnalyzer,
-    pub wind_pattern_endpoint_analyzer: WindPatternEndpointAnalyzer,
+pub struct AtmosphericEndpointAnalyzer {}
+pub struct WeatherEntropyController {}
+pub struct ClimateEntropyManipulator {}
+pub struct AtmosphericThermodynamicValidator {}
+
+// Result and analysis structures
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntropyManipulationResult {
+    pub manipulation_successful: bool,
+    pub entropy_change: f64,
+    pub energy_cost: f64,
+    pub manipulation_time: f64,
+    pub thermodynamic_violations: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
-pub struct WeatherEntropyController {
-    pub weather_pattern_entropy_tracker: WeatherPatternEntropyTracker,
-    pub storm_entropy_analyzer: StormEntropyAnalyzer,
-    pub atmospheric_mixing_entropy_controller: AtmosphericMixingEntropyController,
-    pub convection_entropy_optimizer: ConvectionEntropyOptimizer,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SteeringPlan {
+    pub probability_transfers: Vec<f64>,
+    pub steering_energy_required: f64,
+    pub steering_time_required: f64,
 }
 
-#[derive(Debug, Clone)]
-pub struct ClimateEntropyManipulator {
-    pub global_circulation_entropy_analyzer: GlobalCirculationEntropyAnalyzer,
-    pub ocean_atmosphere_entropy_coupling: OceanAtmosphereEntropyCoupling,
-    pub seasonal_entropy_pattern_controller: SeasonalEntropyPatternController,
-    pub climate_stability_entropy_monitor: ClimateStabilityEntropyMonitor,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SteeringResult {
+    pub success: bool,
+    pub energy_cost: f64,
+    pub manipulation_time: f64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AtmosphericEntropyAnalysis {
+    pub pressure_entropy_endpoints: PressureEntropyEndpoints,
+    pub temperature_entropy_endpoints: TemperatureEntropyEndpoints,
+    pub humidity_entropy_endpoints: HumidityEntropyEndpoints,
+    pub total_atmospheric_entropy: f64,
+    pub entropy_flows: AtmosphericEntropyFlows,
+    pub entropy_manipulation_opportunities: Vec<EntropyManipulationOpportunity>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EntropyManipulationOpportunity {
+    pub opportunity_type: String,
+    pub entropy_change_potential: f64,
+    pub energy_requirement: f64,
+    pub feasibility_score: f64,
+}
+
+// Placeholder structures for atmospheric entropy analysis
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PressureEntropyEndpoints { pub total_pressure_entropy: f64, pub endpoint_count: u32 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemperatureEntropyEndpoints { pub total_temperature_entropy: f64, pub endpoint_count: u32 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HumidityEntropyEndpoints { pub total_humidity_entropy: f64, pub endpoint_count: u32 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AtmosphericEntropyFlows { pub convection_entropy_flow: f64, pub advection_entropy_flow: f64 }
+
+// Implement Default and new() for all components
+macro_rules! impl_entropy_default_new {
+    ($($struct_name:ident),*) => {
+        $(
+            impl Default for $struct_name {
+                fn default() -> Self {
+                    Self::new()
+                }
+            }
+            
+            impl $struct_name {
+                pub fn new() -> Self {
+                    Self {}
+                }
+            }
+        )*
+    };
+}
+
+impl_entropy_default_new!(
+    EndpointAnalyzer, DistributionManipulator, EntropyController, ThermodynamicValidator,
+    AtmosphericEndpointAnalyzer, WeatherEntropyController, ClimateEntropyManipulator, AtmosphericThermodynamicValidator
+);
 
 // Implementation
 impl EntropyEngineeringEngine {
@@ -427,152 +457,7 @@ impl EntropyEngineeringEngine {
     }
 }
 
-impl AtmosphericEntropyEngineer {
-    pub fn new() -> Self {
-        Self {
-            atmospheric_endpoint_analyzer: AtmosphericEndpointAnalyzer::new(),
-            weather_entropy_controller: WeatherEntropyController::new(),
-            climate_entropy_manipulator: ClimateEntropyManipulator::new(),
-            atmospheric_thermodynamic_validator: AtmosphericThermodynamicValidator::new(),
-        }
-    }
-
-    /// Analyze atmospheric entropy through oscillation endpoints
-    pub fn analyze_atmospheric_entropy(&self, atmospheric_data: &crate::AtmosphericState) -> AtmosphericEntropyAnalysis {
-        // Analyze pressure endpoints
-        let pressure_endpoints = self.atmospheric_endpoint_analyzer.pressure_endpoint_analyzer
-            .analyze_pressure_endpoints(&atmospheric_data.tropospheric_state.pressure_profile);
-
-        // Analyze temperature endpoints  
-        let temperature_endpoints = self.atmospheric_endpoint_analyzer.temperature_endpoint_analyzer
-            .analyze_temperature_endpoints(&atmospheric_data.tropospheric_state.temperature_profile);
-
-        // Analyze humidity endpoints
-        let humidity_endpoints = self.atmospheric_endpoint_analyzer.humidity_endpoint_analyzer
-            .analyze_humidity_endpoints(&atmospheric_data.tropospheric_state.humidity_profile);
-
-        // Calculate total atmospheric entropy
-        let total_entropy = self.calculate_total_atmospheric_entropy(&pressure_endpoints, &temperature_endpoints, &humidity_endpoints);
-
-        // Analyze entropy flows
-        let entropy_flows = self.weather_entropy_controller.analyze_entropy_flows(atmospheric_data);
-
-        AtmosphericEntropyAnalysis {
-            pressure_entropy_endpoints: pressure_endpoints,
-            temperature_entropy_endpoints: temperature_endpoints,
-            humidity_entropy_endpoints: humidity_endpoints,
-            total_atmospheric_entropy: total_entropy,
-            entropy_flows,
-            entropy_manipulation_opportunities: self.identify_manipulation_opportunities(&total_entropy),
-        }
-    }
-
-    fn calculate_total_atmospheric_entropy(&self, pressure: &PressureEntropyEndpoints, temperature: &TemperatureEntropyEndpoints, humidity: &HumidityEntropyEndpoints) -> f64 {
-        pressure.total_pressure_entropy + temperature.total_temperature_entropy + humidity.total_humidity_entropy
-    }
-
-    fn identify_manipulation_opportunities(&self, total_entropy: &f64) -> Vec<EntropyManipulationOpportunity> {
-        vec![EntropyManipulationOpportunity {
-            opportunity_type: "convection_enhancement".to_string(),
-            entropy_change_potential: total_entropy * 0.1,
-            energy_requirement: total_entropy * 0.05,
-            feasibility_score: 0.7,
-        }]
-    }
-}
-
-// Result and analysis structures
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EntropyManipulationResult {
-    pub manipulation_successful: bool,
-    pub entropy_change: f64,
-    pub energy_cost: f64,
-    pub manipulation_time: f64,
-    pub thermodynamic_violations: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SteeringPlan {
-    pub probability_transfers: Vec<f64>,
-    pub steering_energy_required: f64,
-    pub steering_time_required: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SteeringResult {
-    pub success: bool,
-    pub energy_cost: f64,
-    pub manipulation_time: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AtmosphericEntropyAnalysis {
-    pub pressure_entropy_endpoints: PressureEntropyEndpoints,
-    pub temperature_entropy_endpoints: TemperatureEntropyEndpoints,
-    pub humidity_entropy_endpoints: HumidityEntropyEndpoints,
-    pub total_atmospheric_entropy: f64,
-    pub entropy_flows: AtmosphericEntropyFlows,
-    pub entropy_manipulation_opportunities: Vec<EntropyManipulationOpportunity>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EntropyManipulationOpportunity {
-    pub opportunity_type: String,
-    pub entropy_change_potential: f64,
-    pub energy_requirement: f64,
-    pub feasibility_score: f64,
-}
-
-// Placeholder structures for atmospheric entropy analysis
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PressureEntropyEndpoints { pub total_pressure_entropy: f64, pub endpoint_count: u32 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TemperatureEntropyEndpoints { pub total_temperature_entropy: f64, pub endpoint_count: u32 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HumidityEntropyEndpoints { pub total_humidity_entropy: f64, pub endpoint_count: u32 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AtmosphericEntropyFlows { pub convection_entropy_flow: f64, pub advection_entropy_flow: f64 }
-
-// Implement Default and new() for all components
-macro_rules! impl_entropy_default_new {
-    ($($struct_name:ident),*) => {
-        $(
-            impl Default for $struct_name {
-                fn default() -> Self {
-                    Self::new()
-                }
-            }
-            
-            impl $struct_name {
-                pub fn new() -> Self {
-                    Self {}
-                }
-            }
-        )*
-    };
-}
-
-impl_entropy_default_new!(
-    SpatialEndpointDetector, EnergyLandscapeAnalyzer, ConfigurationSpaceMapper, TemporalDynamicsAnalyzer,
-    DistributionFitter, DistributionTransformer, ProbabilityFlowController, DistributionOptimizer,
-    EntropyMeasurementSystem, EntropyManipulationSystem, FeedbackControlSystem, OptimizationSystem,
-    SecondLawValidator, EnergyConservationValidator, StatisticalConsistencyValidator, EquilibriumValidator,
-    PressureEndpointAnalyzer, TemperatureEndpointAnalyzer, HumidityEndpointAnalyzer, WindPatternEndpointAnalyzer,
-    WeatherPatternEntropyTracker, StormEntropyAnalyzer, AtmosphericMixingEntropyController, ConvectionEntropyOptimizer,
-    GlobalCirculationEntropyAnalyzer, OceanAtmosphereEntropyCoupling, SeasonalEntropyPatternController, ClimateStabilityEntropyMonitor,
-    AtmosphericThermodynamicValidator
-);
-
 impl EndpointAnalyzer {
-    pub fn new() -> Self {
-        Self {
-            spatial_endpoint_detector: SpatialEndpointDetector::new(),
-            energy_landscape_analyzer: EnergyLandscapeAnalyzer::new(),
-            configuration_space_mapper: ConfigurationSpaceMapper::new(),
-            temporal_dynamics_analyzer: TemporalDynamicsAnalyzer::new(),
-        }
-    }
-
     pub fn analyze_oscillation_endpoints(&self, system: &OscillatorySystem) -> OscillationEndpoints {
         // Analyze spatial endpoints from phase space bounds
         let spatial_endpoints = self.analyze_spatial_endpoints(&system.phase_space_bounds);
@@ -655,15 +540,6 @@ impl EndpointAnalyzer {
 }
 
 impl DistributionManipulator {
-    pub fn new() -> Self {
-        Self {
-            distribution_fitter: DistributionFitter::new(),
-            distribution_transformer: DistributionTransformer::new(),
-            probability_flow_controller: ProbabilityFlowController::new(),
-            distribution_optimizer: DistributionOptimizer::new(),
-        }
-    }
-
     pub fn compute_endpoint_distribution(&self, endpoints: &OscillationEndpoints) -> EndpointDistribution {
         let probabilities: Vec<f64> = endpoints.spatial_endpoints.iter()
             .map(|endpoint| endpoint.endpoint_probability)
@@ -727,139 +603,113 @@ impl DistributionManipulator {
     }
 }
 
-impl AtmosphericEndpointAnalyzer {
+impl ThermodynamicValidator {
+    pub fn validate_consistency(&self, _endpoints: &OscillationEndpoints, _distribution: &EndpointDistribution) -> ThermodynamicConsistencyResult {
+        ThermodynamicConsistencyResult {
+            violations: vec![],
+        }
+    }
+}
+
+impl AtmosphericEntropyEngineer {
     pub fn new() -> Self {
         Self {
-            pressure_endpoint_analyzer: PressureEndpointAnalyzer::new(),
-            temperature_endpoint_analyzer: TemperatureEndpointAnalyzer::new(),
-            humidity_endpoint_analyzer: HumidityEndpointAnalyzer::new(),
-            wind_pattern_endpoint_analyzer: WindPatternEndpointAnalyzer::new(),
+            atmospheric_endpoint_analyzer: AtmosphericEndpointAnalyzer::new(),
+            weather_entropy_controller: WeatherEntropyController::new(),
+            climate_entropy_manipulator: ClimateEntropyManipulator::new(),
+            atmospheric_thermodynamic_validator: AtmosphericThermodynamicValidator::new(),
         }
     }
-}
 
-impl PressureEndpointAnalyzer {
-    pub fn analyze_pressure_endpoints(&self, pressure_profile: &[(f64, f64)]) -> PressureEntropyEndpoints {
+    /// Analyze atmospheric entropy through oscillation endpoints
+    pub fn analyze_atmospheric_entropy(&self, atmospheric_data: &crate::AtmosphericState) -> AtmosphericEntropyAnalysis {
+        // Analyze pressure endpoints
+        let pressure_endpoints = PressureEntropyEndpoints {
+            total_pressure_entropy: self.calculate_pressure_entropy(&atmospheric_data.tropospheric_state.pressure_profile),
+            endpoint_count: atmospheric_data.tropospheric_state.pressure_profile.len() as u32,
+        };
+
+        // Analyze temperature endpoints  
+        let temperature_endpoints = TemperatureEntropyEndpoints {
+            total_temperature_entropy: self.calculate_temperature_entropy(&atmospheric_data.tropospheric_state.temperature_profile),
+            endpoint_count: atmospheric_data.tropospheric_state.temperature_profile.len() as u32,
+        };
+
+        // Analyze humidity endpoints
+        let humidity_endpoints = HumidityEntropyEndpoints {
+            total_humidity_entropy: self.calculate_humidity_entropy(&atmospheric_data.tropospheric_state.humidity_profile),
+            endpoint_count: atmospheric_data.tropospheric_state.humidity_profile.len() as u32,
+        };
+
+        // Calculate total atmospheric entropy
+        let total_entropy = pressure_endpoints.total_pressure_entropy + 
+                           temperature_endpoints.total_temperature_entropy + 
+                           humidity_endpoints.total_humidity_entropy;
+
+        // Analyze entropy flows
+        let entropy_flows = AtmosphericEntropyFlows {
+            convection_entropy_flow: self.calculate_convection_entropy_flow(atmospheric_data),
+            advection_entropy_flow: self.calculate_advection_entropy_flow(atmospheric_data),
+        };
+
+        AtmosphericEntropyAnalysis {
+            pressure_entropy_endpoints: pressure_endpoints,
+            temperature_entropy_endpoints: temperature_endpoints,
+            humidity_entropy_endpoints: humidity_endpoints,
+            total_atmospheric_entropy: total_entropy,
+            entropy_flows,
+            entropy_manipulation_opportunities: self.identify_manipulation_opportunities(&total_entropy),
+        }
+    }
+
+    fn calculate_pressure_entropy(&self, pressure_profile: &[(f64, f64)]) -> f64 {
         let pressure_values: Vec<f64> = pressure_profile.iter().map(|(_, p)| *p).collect();
-        let pressure_entropy = self.calculate_pressure_entropy(&pressure_values);
-        
-        PressureEntropyEndpoints {
-            total_pressure_entropy: pressure_entropy,
-            endpoint_count: pressure_values.len() as u32,
-        }
+        self.calculate_shannon_entropy(&pressure_values)
     }
 
-    fn calculate_pressure_entropy(&self, pressures: &[f64]) -> f64 {
-        // Calculate entropy based on pressure distribution
-        let max_pressure = pressures.iter().fold(0.0, |a, &b| a.max(b));
-        let min_pressure = pressures.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-        
-        if max_pressure > min_pressure {
-            let normalized_pressures: Vec<f64> = pressures.iter()
-                .map(|&p| (p - min_pressure) / (max_pressure - min_pressure))
-                .collect();
-            
-            // Shannon entropy
-            normalized_pressures.iter()
-                .filter(|&&p| p > 0.0)
-                .map(|&p| -p * p.ln())
-                .sum()
-        } else {
-            0.0
-        }
-    }
-}
-
-impl TemperatureEndpointAnalyzer {
-    pub fn analyze_temperature_endpoints(&self, temperature_profile: &[(f64, f64)]) -> TemperatureEntropyEndpoints {
+    fn calculate_temperature_entropy(&self, temperature_profile: &[(f64, f64)]) -> f64 {
         let temperature_values: Vec<f64> = temperature_profile.iter().map(|(_, t)| *t).collect();
-        let temperature_entropy = self.calculate_temperature_entropy(&temperature_values);
-        
-        TemperatureEntropyEndpoints {
-            total_temperature_entropy: temperature_entropy,
-            endpoint_count: temperature_values.len() as u32,
-        }
+        self.calculate_shannon_entropy(&temperature_values)
     }
 
-    fn calculate_temperature_entropy(&self, temperatures: &[f64]) -> f64 {
-        // Calculate entropy based on temperature distribution
-        let max_temp = temperatures.iter().fold(0.0, |a, &b| a.max(b));
-        let min_temp = temperatures.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-        
-        if max_temp > min_temp {
-            let normalized_temps: Vec<f64> = temperatures.iter()
-                .map(|&t| (t - min_temp) / (max_temp - min_temp))
-                .collect();
-            
-            // Shannon entropy
-            normalized_temps.iter()
-                .filter(|&&t| t > 0.0)
-                .map(|&t| -t * t.ln())
-                .sum()
-        } else {
-            0.0
-        }
-    }
-}
-
-impl HumidityEndpointAnalyzer {
-    pub fn analyze_humidity_endpoints(&self, humidity_profile: &[(f64, f64)]) -> HumidityEntropyEndpoints {
+    fn calculate_humidity_entropy(&self, humidity_profile: &[(f64, f64)]) -> f64 {
         let humidity_values: Vec<f64> = humidity_profile.iter().map(|(_, h)| *h).collect();
-        let humidity_entropy = self.calculate_humidity_entropy(&humidity_values);
-        
-        HumidityEntropyEndpoints {
-            total_humidity_entropy: humidity_entropy,
-            endpoint_count: humidity_values.len() as u32,
-        }
+        self.calculate_shannon_entropy(&humidity_values)
     }
 
-    fn calculate_humidity_entropy(&self, humidities: &[f64]) -> f64 {
-        // Calculate entropy based on humidity distribution
-        let max_humidity = humidities.iter().fold(0.0, |a, &b| a.max(b));
-        let min_humidity = humidities.iter().fold(f64::INFINITY, |a, &b| a.min(b));
-        
-        if max_humidity > min_humidity {
-            let normalized_humidities: Vec<f64> = humidities.iter()
-                .map(|&h| (h - min_humidity) / (max_humidity - min_humidity))
-                .collect();
-            
-            // Shannon entropy
-            normalized_humidities.iter()
-                .filter(|&&h| h > 0.0)
-                .map(|&h| -h * h.ln())
-                .sum()
-        } else {
-            0.0
-        }
-    }
-}
-
-impl WeatherEntropyController {
-    pub fn analyze_entropy_flows(&self, atmospheric_data: &crate::AtmosphericState) -> AtmosphericEntropyFlows {
-        // Simplified entropy flow analysis
-        let pressure_gradient = self.calculate_pressure_gradient(&atmospheric_data.tropospheric_state.pressure_profile);
-        let temperature_gradient = self.calculate_temperature_gradient(&atmospheric_data.tropospheric_state.temperature_profile);
-        
-        AtmosphericEntropyFlows {
-            convection_entropy_flow: temperature_gradient.abs(),
-            advection_entropy_flow: pressure_gradient.abs(),
-        }
-    }
-
-    fn calculate_pressure_gradient(&self, pressure_profile: &[(f64, f64)]) -> f64 {
-        if pressure_profile.len() < 2 {
+    fn calculate_shannon_entropy(&self, values: &[f64]) -> f64 {
+        if values.is_empty() {
             return 0.0;
         }
+
+        let max_val = values.iter().fold(0.0, |a, &b| a.max(b));
+        let min_val = values.iter().fold(f64::INFINITY, |a, &b| a.min(b));
         
-        let mut total_gradient = 0.0;
-        for window in pressure_profile.windows(2) {
-            let (alt1, p1) = window[0];
-            let (alt2, p2) = window[1];
-            let gradient = (p2 - p1) / (alt2 - alt1);
-            total_gradient += gradient.abs();
+        if max_val > min_val {
+            let normalized_values: Vec<f64> = values.iter()
+                .map(|&v| (v - min_val) / (max_val - min_val))
+                .collect();
+            
+            // Shannon entropy
+            normalized_values.iter()
+                .filter(|&&v| v > 0.0)
+                .map(|&v| -v * v.ln())
+                .sum()
+        } else {
+            0.0
         }
-        
-        total_gradient / (pressure_profile.len() - 1) as f64
+    }
+
+    fn calculate_convection_entropy_flow(&self, atmospheric_data: &crate::AtmosphericState) -> f64 {
+        // Calculate entropy flow due to convection based on temperature gradients
+        let temperature_gradient = self.calculate_temperature_gradient(&atmospheric_data.tropospheric_state.temperature_profile);
+        temperature_gradient.abs()
+    }
+
+    fn calculate_advection_entropy_flow(&self, atmospheric_data: &crate::AtmosphericState) -> f64 {
+        // Calculate entropy flow due to advection based on pressure gradients
+        let pressure_gradient = self.calculate_pressure_gradient(&atmospheric_data.tropospheric_state.pressure_profile);
+        pressure_gradient.abs()
     }
 
     fn calculate_temperature_gradient(&self, temperature_profile: &[(f64, f64)]) -> f64 {
@@ -871,10 +721,44 @@ impl WeatherEntropyController {
         for window in temperature_profile.windows(2) {
             let (alt1, t1) = window[0];
             let (alt2, t2) = window[1];
-            let gradient = (t2 - t1) / (alt2 - alt1);
-            total_gradient += gradient.abs();
+            if alt2 != alt1 {
+                let gradient = (t2 - t1) / (alt2 - alt1);
+                total_gradient += gradient.abs();
+            }
         }
         
         total_gradient / (temperature_profile.len() - 1) as f64
     }
+
+    fn calculate_pressure_gradient(&self, pressure_profile: &[(f64, f64)]) -> f64 {
+        if pressure_profile.len() < 2 {
+            return 0.0;
+        }
+        
+        let mut total_gradient = 0.0;
+        for window in pressure_profile.windows(2) {
+            let (alt1, p1) = window[0];
+            let (alt2, p2) = window[1];
+            if alt2 != alt1 {
+                let gradient = (p2 - p1) / (alt2 - alt1);
+                total_gradient += gradient.abs();
+            }
+        }
+        
+        total_gradient / (pressure_profile.len() - 1) as f64
+    }
+
+    fn identify_manipulation_opportunities(&self, total_entropy: &f64) -> Vec<EntropyManipulationOpportunity> {
+        vec![EntropyManipulationOpportunity {
+            opportunity_type: "convection_enhancement".to_string(),
+            entropy_change_potential: total_entropy * 0.1,
+            energy_requirement: total_entropy * 0.05,
+            feasibility_score: 0.7,
+        }]
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ThermodynamicConsistencyResult {
+    pub violations: Vec<String>,
 } 

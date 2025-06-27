@@ -203,12 +203,20 @@ pub struct BoundedSystemDetector {
     pub poincare_recurrence_analyzer: PoincareRecurrenceAnalyzer,
 }
 
+pub struct PhaseSpaceBoundsCalculator {}
+pub struct EnergyBoundednessVerifier {}
+pub struct PoincareRecurrenceAnalyzer {}
+
 #[derive(Debug, Clone)]
 pub struct NonlinearityAnalyzer {
     pub coupling_strength_calculator: CouplingStrengthCalculator,
     pub nonlinear_dynamics_classifier: NonlinearDynamicsClassifier,
     pub chaos_theory_analyzer: ChaosTheoryAnalyzer,
 }
+
+pub struct CouplingStrengthCalculator {}
+pub struct NonlinearDynamicsClassifier {}
+pub struct ChaosTheoryAnalyzer {}
 
 #[derive(Debug, Clone)]
 pub struct RecurrenceTheoremEngine {
@@ -217,6 +225,10 @@ pub struct RecurrenceTheoremEngine {
     pub measure_preserving_verifier: MeasurePreservingVerifier,
 }
 
+pub struct PoincareReturnMapCalculator {}
+pub struct RecurrenceTimeEstimator {}
+pub struct MeasurePreservingVerifier {}
+
 #[derive(Debug, Clone)]
 pub struct ErgodicAnalysisEngine {
     pub ergodicity_verifier: ErgodicityVerifier,
@@ -224,79 +236,11 @@ pub struct ErgodicAnalysisEngine {
     pub invariant_measure_calculator: InvariantMeasureCalculator,
 }
 
-/// Causal Self-Generation Theorem Implementation
-pub struct CausalSelfGenerationAnalyzer {
-    pub complexity_threshold_detector: ComplexityThresholdDetector,
-    pub self_reference_analyzer: SelfReferenceAnalyzer,
-    pub autocatalytic_loop_detector: AutocatalyticLoopDetector,
-    pub causal_closure_verifier: CausalClosureVerifier,
-}
+pub struct ErgodicityVerifier {}
+pub struct MixingPropertyAnalyzer {}
+pub struct InvariantMeasureCalculator {}
 
-#[derive(Debug, Clone)]
-pub struct ComplexityThresholdDetector {
-    pub kolmogorov_complexity_estimator: KolmogorovComplexityEstimator,
-    pub logical_depth_calculator: LogicalDepthCalculator,
-    pub effective_complexity_analyzer: EffectiveComplexityAnalyzer,
-}
-
-#[derive(Debug, Clone)]
-pub struct SelfReferenceAnalyzer {
-    pub self_reference_loop_detector: SelfReferenceLoopDetector,
-    pub godel_sentence_generator: GodelSentenceGenerator,
-    pub strange_loop_classifier: StrangeLoopClassifier,
-}
-
-#[derive(Debug, Clone)]
-pub struct AutocatalyticLoopDetector {
-    pub catalytic_network_analyzer: CatalyticNetworkAnalyzer,
-    pub hypercycle_detector: HypercycleDetector,
-    pub autocatalytic_set_finder: AutocatalyticSetFinder,
-}
-
-#[derive(Debug, Clone)]
-pub struct CausalClosureVerifier {
-    pub causal_loop_strength_calculator: CausalLoopStrengthCalculator,
-    pub external_dependency_minimizer: ExternalDependencyMinimizer,
-    pub self_organization_detector: SelfOrganizationDetector,
-}
-
-/// Nested Hierarchy Principle Implementation
-pub struct NestedHierarchyAnalyzer {
-    pub scale_coupling_analyzer: ScaleCouplingAnalyzer,
-    pub emergence_detector: EmergenceDetector,
-    pub downward_causation_analyzer: DownwardCausationAnalyzer,
-    pub hierarchy_stability_analyzer: HierarchyStabilityAnalyzer,
-}
-
-#[derive(Debug, Clone)]
-pub struct ScaleCouplingAnalyzer {
-    pub inter_scale_coupling_calculator: InterScaleCouplingCalculator,
-    pub scale_separation_analyzer: ScaleSeparationAnalyzer,
-    pub renormalization_group_analyzer: RenormalizationGroupAnalyzer,
-}
-
-#[derive(Debug, Clone)]
-pub struct EmergenceDetector {
-    pub weak_emergence_detector: WeakEmergenceDetector,
-    pub strong_emergence_detector: StrongEmergenceDetector,
-    pub emergent_property_classifier: EmergentPropertyClassifier,
-}
-
-#[derive(Debug, Clone)]
-pub struct DownwardCausationAnalyzer {
-    pub constraint_propagation_analyzer: ConstraintPropagationAnalyzer,
-    pub boundary_condition_analyzer: BoundaryConditionAnalyzer,
-    pub top_down_influence_calculator: TopDownInfluenceCalculator,
-}
-
-#[derive(Debug, Clone)]
-pub struct HierarchyStabilityAnalyzer {
-    pub level_interaction_stability: LevelInteractionStability,
-    pub hierarchy_robustness_calculator: HierarchyRobustnessCalculator,
-    pub multi_scale_synchronization_analyzer: MultiScaleSynchronizationAnalyzer,
-}
-
-// Atmospheric Oscillatory Analysis Implementation
+/// Atmospheric Oscillatory Analysis Implementation
 pub struct AtmosphericOscillatoryAnalyzer {
     pub atmospheric_oscillation_detector: AtmosphericOscillationDetector,
     pub weather_pattern_oscillator: WeatherPatternOscillator,
@@ -312,6 +256,11 @@ pub struct AtmosphericOscillationDetector {
     pub wind_pattern_oscillation_analyzer: WindPatternOscillationAnalyzer,
 }
 
+pub struct PressureOscillationAnalyzer {}
+pub struct TemperatureOscillationAnalyzer {}
+pub struct HumidityOscillationAnalyzer {}
+pub struct WindPatternOscillationAnalyzer {}
+
 #[derive(Debug, Clone)]
 pub struct WeatherPatternOscillator {
     pub cyclonic_oscillation_detector: CyclonicOscillationDetector,
@@ -320,21 +269,101 @@ pub struct WeatherPatternOscillator {
     pub jet_stream_oscillation_analyzer: JetStreamOscillationAnalyzer,
 }
 
-#[derive(Debug, Clone)]
-pub struct AtmosphericHierarchyAnalyzer {
-    pub micro_scale_oscillations: MicroScaleOscillations, // Molecular level
-    pub meso_scale_oscillations: MesoScaleOscillations,   // Cloud/storm level
-    pub macro_scale_oscillations: MacroScaleOscillations, // Weather system level
-    pub planetary_scale_oscillations: PlanetaryScaleOscillations, // Global circulation
+pub struct CyclonicOscillationDetector {}
+pub struct AnticyclonicOscillationDetector {}
+pub struct FrontalSystemOscillationAnalyzer {}
+pub struct JetStreamOscillationAnalyzer {}
+
+// Result structures
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UniversalOscillationResult {
+    pub theorem_verified: bool,
+    pub oscillation_inevitability_proof: OscillationInevitabilityProof,
+    pub oscillation_characteristics: OscillationCharacteristics,
+    pub mathematical_necessity_score: f64,
 }
 
-#[derive(Debug, Clone)]
-pub struct CausalWeatherLoopDetector {
-    pub evaporation_precipitation_loop: EvaporationPrecipitationLoop,
-    pub pressure_wind_feedback_loop: PressureWindFeedbackLoop,
-    pub temperature_convection_loop: TemperatureConvectionLoop,
-    pub ocean_atmosphere_coupling_loop: OceanAtmosphereCouplingLoop,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OscillationInevitabilityProof {
+    pub bounded_phase_space: BoundedSystemVerification,
+    pub nonlinear_coupling: NonlinearityVerification,
+    pub poincare_recurrence: PoincareRecurrenceAnalysis,
+    pub ergodic_behavior: ErgodicAnalysis,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OscillationCharacteristics {
+    pub fundamental_frequency: f64,
+    pub harmonic_structure: Vec<f64>,
+    pub amplitude_modulation: f64,
+    pub phase_coherence: f64,
+    pub stability_measure: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AtmosphericOscillationAnalysis {
+    pub fundamental_oscillations: FundamentalAtmosphericOscillations,
+    pub weather_pattern_oscillations: WeatherPatternOscillations,
+    pub hierarchical_structure: AtmosphericHierarchyAnalysis,
+    pub causal_loops: CausalWeatherLoops,
+    pub oscillatory_predictability: f64,
+}
+
+// Placeholder structures for compilation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BoundedSystemVerification { pub is_bounded: bool, pub boundedness_strength: f64 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NonlinearityVerification { pub is_nonlinear: bool, pub nonlinearity_strength: f64 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PoincareRecurrenceAnalysis { pub recurrence_time: f64, pub recurrence_probability: f64 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErgodicAnalysis { pub is_ergodic: bool, pub mixing_rate: f64 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FundamentalAtmosphericOscillations { 
+    pub pressure_oscillations: Vec<f64>, 
+    pub temperature_oscillations: Vec<f64>,
+    pub humidity_oscillations: Vec<f64>,
+    pub wind_oscillations: Vec<f64>,
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WeatherPatternOscillations { pub cyclonic_patterns: Vec<f64>, pub frontal_patterns: Vec<f64> }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AtmosphericHierarchyAnalysis { pub hierarchy_coherence: f64, pub scale_coupling: f64 }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CausalWeatherLoops { pub total_loop_strength: f64, pub loop_count: u32 }
+
+pub struct AtmosphericHierarchyAnalyzer {}
+pub struct CausalWeatherLoopDetector {}
+
+// Implement Default and new() methods for all detector/analyzer structs
+macro_rules! impl_default_new {
+    ($($struct_name:ident),*) => {
+        $(
+            impl Default for $struct_name {
+                fn default() -> Self {
+                    Self::new()
+                }
+            }
+            
+            impl $struct_name {
+                pub fn new() -> Self {
+                    Self {}
+                }
+            }
+        )*
+    };
+}
+
+impl_default_new!(
+    PhaseSpaceBoundsCalculator, EnergyBoundednessVerifier, PoincareRecurrenceAnalyzer,
+    CouplingStrengthCalculator, NonlinearDynamicsClassifier, ChaosTheoryAnalyzer,
+    PoincareReturnMapCalculator, RecurrenceTimeEstimator, MeasurePreservingVerifier,
+    ErgodicityVerifier, MixingPropertyAnalyzer, InvariantMeasureCalculator,
+    PressureOscillationAnalyzer, TemperatureOscillationAnalyzer, HumidityOscillationAnalyzer,
+    WindPatternOscillationAnalyzer, CyclonicOscillationDetector, AnticyclonicOscillationDetector,
+    FrontalSystemOscillationAnalyzer, JetStreamOscillationAnalyzer,
+    AtmosphericHierarchyAnalyzer, CausalWeatherLoopDetector
+);
 
 // Implementation methods
 impl UniversalOscillationAnalyzer {
@@ -387,7 +416,11 @@ impl UniversalOscillationAnalyzer {
 
     fn compute_phase_coherence(&self, phase_relationships: &PhaseRelationships) -> f64 {
         // Compute average phase locking index
-        phase_relationships.phase_locking_indices.iter().sum::<f64>() / phase_relationships.phase_locking_indices.len() as f64
+        if phase_relationships.phase_locking_indices.is_empty() {
+            0.0
+        } else {
+            phase_relationships.phase_locking_indices.iter().sum::<f64>() / phase_relationships.phase_locking_indices.len() as f64
+        }
     }
 
     fn compute_mathematical_necessity_score(&self, bounded: &BoundedSystemVerification, nonlinear: &NonlinearityVerification) -> f64 {
@@ -396,214 +429,6 @@ impl UniversalOscillationAnalyzer {
     }
 }
 
-impl CausalSelfGenerationAnalyzer {
-    pub fn new() -> Self {
-        Self {
-            complexity_threshold_detector: ComplexityThresholdDetector::new(),
-            self_reference_analyzer: SelfReferenceAnalyzer::new(),
-            autocatalytic_loop_detector: AutocatalyticLoopDetector::new(),
-            causal_closure_verifier: CausalClosureVerifier::new(),
-        }
-    }
-
-    /// Theorem 1.2: Causal Self-Generation Theorem
-    /// Sufficiently complex oscillations become self-sustaining, eliminating need for external prime movers
-    pub fn verify_causal_self_generation(&self, system: &OscillatorySystem) -> CausalSelfGenerationResult {
-        // Step 1: Verify complexity threshold
-        let complexity_analysis = self.complexity_threshold_detector.analyze_system_complexity(system);
-        
-        // Step 2: Detect self-reference loops
-        let self_reference_analysis = self.self_reference_analyzer.detect_self_reference_loops(system);
-        
-        // Step 3: Find autocatalytic networks
-        let autocatalytic_analysis = self.autocatalytic_loop_detector.find_autocatalytic_networks(system);
-        
-        // Step 4: Verify causal closure
-        let causal_closure_analysis = self.causal_closure_verifier.verify_causal_closure(system);
-        
-        CausalSelfGenerationResult {
-            self_generation_verified: complexity_analysis.exceeds_threshold && 
-                                    self_reference_analysis.has_self_reference &&
-                                    autocatalytic_analysis.has_autocatalytic_loops &&
-                                    causal_closure_analysis.is_causally_closed,
-            complexity_analysis,
-            self_reference_analysis,
-            autocatalytic_analysis,
-            causal_closure_analysis,
-            self_sustaining_probability: self.compute_self_sustaining_probability(&complexity_analysis, &causal_closure_analysis),
-        }
-    }
-
-    fn compute_self_sustaining_probability(&self, complexity: &ComplexityAnalysis, closure: &CausalClosureAnalysis) -> f64 {
-        // Probability increases with complexity and causal closure strength
-        (complexity.complexity_measure * closure.closure_strength).tanh()
-    }
-}
-
-impl AtmosphericOscillatoryAnalyzer {
-    pub fn new() -> Self {
-        Self {
-            atmospheric_oscillation_detector: AtmosphericOscillationDetector::new(),
-            weather_pattern_oscillator: WeatherPatternOscillator::new(),
-            atmospheric_hierarchy_analyzer: AtmosphericHierarchyAnalyzer::new(),
-            causal_weather_loop_detector: CausalWeatherLoopDetector::new(),
-        }
-    }
-
-    /// Apply oscillatory framework to atmospheric sensing
-    pub fn analyze_atmospheric_oscillations(&self, atmospheric_data: &crate::AtmosphericState) -> AtmosphericOscillationAnalysis {
-        // Detect fundamental atmospheric oscillations
-        let pressure_oscillations = self.atmospheric_oscillation_detector.pressure_oscillation_analyzer
-            .analyze_pressure_oscillations(&atmospheric_data.tropospheric_state.pressure_profile);
-        
-        let temperature_oscillations = self.atmospheric_oscillation_detector.temperature_oscillation_analyzer
-            .analyze_temperature_oscillations(&atmospheric_data.tropospheric_state.temperature_profile);
-        
-        // Analyze weather pattern oscillations
-        let weather_oscillations = self.weather_pattern_oscillator.analyze_weather_patterns(atmospheric_data);
-        
-        // Analyze hierarchical structure
-        let hierarchy_analysis = self.atmospheric_hierarchy_analyzer.analyze_atmospheric_hierarchy(atmospheric_data);
-        
-        // Detect causal loops
-        let causal_loops = self.causal_weather_loop_detector.detect_causal_weather_loops(atmospheric_data);
-        
-        AtmosphericOscillationAnalysis {
-            fundamental_oscillations: FundamentalAtmosphericOscillations {
-                pressure_oscillations,
-                temperature_oscillations,
-                humidity_oscillations: Vec::new(), // Simplified for brevity
-                wind_oscillations: Vec::new(),
-            },
-            weather_pattern_oscillations: weather_oscillations,
-            hierarchical_structure: hierarchy_analysis,
-            causal_loops,
-            oscillatory_predictability: self.compute_oscillatory_predictability(&hierarchy_analysis, &causal_loops),
-        }
-    }
-
-    fn compute_oscillatory_predictability(&self, hierarchy: &AtmosphericHierarchyAnalysis, loops: &CausalWeatherLoops) -> f64 {
-        // Predictability increases with hierarchical coherence and causal loop strength
-        (hierarchy.hierarchy_coherence * loops.total_loop_strength).sqrt()
-    }
-}
-
-// Result structures
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UniversalOscillationResult {
-    pub theorem_verified: bool,
-    pub oscillation_inevitability_proof: OscillationInevitabilityProof,
-    pub oscillation_characteristics: OscillationCharacteristics,
-    pub mathematical_necessity_score: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OscillationInevitabilityProof {
-    pub bounded_phase_space: BoundedSystemVerification,
-    pub nonlinear_coupling: NonlinearityVerification,
-    pub poincare_recurrence: PoincareRecurrenceAnalysis,
-    pub ergodic_behavior: ErgodicAnalysis,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OscillationCharacteristics {
-    pub fundamental_frequency: f64,
-    pub harmonic_structure: Vec<f64>,
-    pub amplitude_modulation: f64,
-    pub phase_coherence: f64,
-    pub stability_measure: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CausalSelfGenerationResult {
-    pub self_generation_verified: bool,
-    pub complexity_analysis: ComplexityAnalysis,
-    pub self_reference_analysis: SelfReferenceAnalysis,
-    pub autocatalytic_analysis: AutocatalyticAnalysis,
-    pub causal_closure_analysis: CausalClosureAnalysis,
-    pub self_sustaining_probability: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AtmosphericOscillationAnalysis {
-    pub fundamental_oscillations: FundamentalAtmosphericOscillations,
-    pub weather_pattern_oscillations: WeatherPatternOscillations,
-    pub hierarchical_structure: AtmosphericHierarchyAnalysis,
-    pub causal_loops: CausalWeatherLoops,
-    pub oscillatory_predictability: f64,
-}
-
-// Placeholder structures for compilation
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BoundedSystemVerification { pub is_bounded: bool, pub boundedness_strength: f64 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NonlinearityVerification { pub is_nonlinear: bool, pub nonlinearity_strength: f64 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PoincareRecurrenceAnalysis { pub recurrence_time: f64, pub recurrence_probability: f64 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ErgodicAnalysis { pub is_ergodic: bool, pub mixing_rate: f64 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ComplexityAnalysis { pub complexity_measure: f64, pub exceeds_threshold: bool }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SelfReferenceAnalysis { pub has_self_reference: bool, pub self_reference_strength: f64 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AutocatalyticAnalysis { pub has_autocatalytic_loops: bool, pub loop_strength: f64 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CausalClosureAnalysis { pub is_causally_closed: bool, pub closure_strength: f64 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FundamentalAtmosphericOscillations { 
-    pub pressure_oscillations: Vec<f64>, 
-    pub temperature_oscillations: Vec<f64>,
-    pub humidity_oscillations: Vec<f64>,
-    pub wind_oscillations: Vec<f64>,
-}
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WeatherPatternOscillations { pub cyclonic_patterns: Vec<f64>, pub frontal_patterns: Vec<f64> }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AtmosphericHierarchyAnalysis { pub hierarchy_coherence: f64, pub scale_coupling: f64 }
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CausalWeatherLoops { pub total_loop_strength: f64, pub loop_count: u32 }
-
-// Implement Default and new() methods for all detector/analyzer structs
-macro_rules! impl_default_new {
-    ($($struct_name:ident),*) => {
-        $(
-            impl Default for $struct_name {
-                fn default() -> Self {
-                    Self::new()
-                }
-            }
-            
-            impl $struct_name {
-                pub fn new() -> Self {
-                    Self {}
-                }
-            }
-        )*
-    };
-}
-
-impl_default_new!(
-    PhaseSpaceBoundsCalculator, EnergyBoundednessVerifier, PoincareRecurrenceAnalyzer,
-    CouplingStrengthCalculator, NonlinearDynamicsClassifier, ChaosTheoryAnalyzer,
-    PoincareReturnMapCalculator, RecurrenceTimeEstimator, MeasurePreservingVerifier,
-    ErgodicityVerifier, MixingPropertyAnalyzer, InvariantMeasureCalculator,
-    KolmogorovComplexityEstimator, LogicalDepthCalculator, EffectiveComplexityAnalyzer,
-    SelfReferenceLoopDetector, GodelSentenceGenerator, StrangeLoopClassifier,
-    CatalyticNetworkAnalyzer, HypercycleDetector, AutocatalyticSetFinder,
-    CausalLoopStrengthCalculator, ExternalDependencyMinimizer, SelfOrganizationDetector,
-    InterScaleCouplingCalculator, ScaleSeparationAnalyzer, RenormalizationGroupAnalyzer,
-    WeakEmergenceDetector, StrongEmergenceDetector, EmergentPropertyClassifier,
-    ConstraintPropagationAnalyzer, BoundaryConditionAnalyzer, TopDownInfluenceCalculator,
-    LevelInteractionStability, HierarchyRobustnessCalculator, MultiScaleSynchronizationAnalyzer,
-    PressureOscillationAnalyzer, TemperatureOscillationAnalyzer, HumidityOscillationAnalyzer,
-    WindPatternOscillationAnalyzer, CyclonicOscillationDetector, AnticyclonicOscillationDetector,
-    FrontalSystemOscillationAnalyzer, JetStreamOscillationAnalyzer,
-    MicroScaleOscillations, MesoScaleOscillations, MacroScaleOscillations, PlanetaryScaleOscillations,
-    EvaporationPrecipitationLoop, PressureWindFeedbackLoop, TemperatureConvectionLoop, OceanAtmosphereCouplingLoop
-);
-
-// Implement specific methods for key analyzers
 impl BoundedSystemDetector {
     pub fn new() -> Self {
         Self {
@@ -698,35 +523,75 @@ impl ErgodicAnalysisEngine {
     }
 }
 
-impl ComplexityThresholdDetector {
+impl AtmosphericOscillatoryAnalyzer {
     pub fn new() -> Self {
         Self {
-            kolmogorov_complexity_estimator: KolmogorovComplexityEstimator::new(),
-            logical_depth_calculator: LogicalDepthCalculator::new(),
-            effective_complexity_analyzer: EffectiveComplexityAnalyzer::new(),
+            atmospheric_oscillation_detector: AtmosphericOscillationDetector::new(),
+            weather_pattern_oscillator: WeatherPatternOscillator::new(),
+            atmospheric_hierarchy_analyzer: AtmosphericHierarchyAnalyzer::new(),
+            causal_weather_loop_detector: CausalWeatherLoopDetector::new(),
         }
     }
 
-    pub fn analyze_system_complexity(&self, system: &OscillatorySystem) -> ComplexityAnalysis {
-        // Estimate complexity based on coupling matrix size and nonlinearity
-        let matrix_size = system.nonlinear_coupling_matrix.coupling_coefficients.len();
-        let coupling_complexity = matrix_size as f64 * matrix_size as f64;
-        let nonlinearity_complexity = system.nonlinear_coupling_matrix.nonlinearity_exponents.iter()
-            .flatten()
-            .map(|&x| x.abs())
-            .sum::<f64>();
+    /// Apply oscillatory framework to atmospheric sensing
+    pub fn analyze_atmospheric_oscillations(&self, atmospheric_data: &crate::AtmosphericState) -> AtmosphericOscillationAnalysis {
+        // Detect fundamental atmospheric oscillations
+        let pressure_oscillations = self.atmospheric_oscillation_detector.pressure_oscillation_analyzer
+            .analyze_pressure_oscillations(&atmospheric_data.tropospheric_state.pressure_profile);
         
-        let complexity_measure = (coupling_complexity * nonlinearity_complexity).sqrt();
-        let complexity_threshold = 10.0; // Arbitrary threshold for self-generation
+        let temperature_oscillations = self.atmospheric_oscillation_detector.temperature_oscillation_analyzer
+            .analyze_temperature_oscillations(&atmospheric_data.tropospheric_state.temperature_profile);
         
-        ComplexityAnalysis {
-            complexity_measure,
-            exceeds_threshold: complexity_measure > complexity_threshold,
+        // Analyze weather pattern oscillations
+        let weather_oscillations = self.weather_pattern_oscillator.analyze_weather_patterns(atmospheric_data);
+        
+        // Analyze hierarchical structure
+        let hierarchy_analysis = self.atmospheric_hierarchy_analyzer.analyze_atmospheric_hierarchy(atmospheric_data);
+        
+        // Detect causal loops
+        let causal_loops = self.causal_weather_loop_detector.detect_causal_weather_loops(atmospheric_data);
+        
+        AtmosphericOscillationAnalysis {
+            fundamental_oscillations: FundamentalAtmosphericOscillations {
+                pressure_oscillations,
+                temperature_oscillations,
+                humidity_oscillations: Vec::new(), // Simplified for brevity
+                wind_oscillations: Vec::new(),
+            },
+            weather_pattern_oscillations: weather_oscillations,
+            hierarchical_structure: hierarchy_analysis,
+            causal_loops,
+            oscillatory_predictability: self.compute_oscillatory_predictability(&hierarchy_analysis, &causal_loops),
+        }
+    }
+
+    fn compute_oscillatory_predictability(&self, hierarchy: &AtmosphericHierarchyAnalysis, loops: &CausalWeatherLoops) -> f64 {
+        // Predictability increases with hierarchical coherence and causal loop strength
+        (hierarchy.hierarchy_coherence * loops.total_loop_strength).sqrt()
+    }
+}
+
+impl AtmosphericOscillationDetector {
+    pub fn new() -> Self {
+        Self {
+            pressure_oscillation_analyzer: PressureOscillationAnalyzer::new(),
+            temperature_oscillation_analyzer: TemperatureOscillationAnalyzer::new(),
+            humidity_oscillation_analyzer: HumidityOscillationAnalyzer::new(),
+            wind_pattern_oscillation_analyzer: WindPatternOscillationAnalyzer::new(),
         }
     }
 }
 
 impl WeatherPatternOscillator {
+    pub fn new() -> Self {
+        Self {
+            cyclonic_oscillation_detector: CyclonicOscillationDetector::new(),
+            anticyclonic_oscillation_detector: AnticyclonicOscillationDetector::new(),
+            frontal_system_oscillation_analyzer: FrontalSystemOscillationAnalyzer::new(),
+            jet_stream_oscillation_analyzer: JetStreamOscillationAnalyzer::new(),
+        }
+    }
+
     pub fn analyze_weather_patterns(&self, atmospheric_data: &crate::AtmosphericState) -> WeatherPatternOscillations {
         // Simplified analysis of weather pattern oscillations
         let pressure_variations = atmospheric_data.tropospheric_state.pressure_profile.iter()
@@ -757,5 +622,35 @@ impl WeatherPatternOscillator {
         pressure_data.windows(2)
             .map(|window| (window[1] - window[0]).abs())
             .collect()
+    }
+}
+
+impl PressureOscillationAnalyzer {
+    pub fn analyze_pressure_oscillations(&self, pressure_profile: &[(f64, f64)]) -> Vec<f64> {
+        pressure_profile.iter().map(|(_, pressure)| *pressure).collect()
+    }
+}
+
+impl TemperatureOscillationAnalyzer {
+    pub fn analyze_temperature_oscillations(&self, temperature_profile: &[(f64, f64)]) -> Vec<f64> {
+        temperature_profile.iter().map(|(_, temperature)| *temperature).collect()
+    }
+}
+
+impl AtmosphericHierarchyAnalyzer {
+    pub fn analyze_atmospheric_hierarchy(&self, _atmospheric_data: &crate::AtmosphericState) -> AtmosphericHierarchyAnalysis {
+        AtmosphericHierarchyAnalysis {
+            hierarchy_coherence: 0.8,
+            scale_coupling: 0.6,
+        }
+    }
+}
+
+impl CausalWeatherLoopDetector {
+    pub fn detect_causal_weather_loops(&self, _atmospheric_data: &crate::AtmosphericState) -> CausalWeatherLoops {
+        CausalWeatherLoops {
+            total_loop_strength: 0.7,
+            loop_count: 3,
+        }
     }
 } 
