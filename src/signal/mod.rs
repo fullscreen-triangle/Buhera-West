@@ -18,6 +18,8 @@ pub mod huggingface_integration;
 pub mod continuous_learning;
 pub mod computer_vision_integration;
 pub mod comprehensive_integration_engine;
+pub mod crossfilter_engine;
+pub mod crossfilter_web_interface;
 
 pub use core_types::*;
 pub use gps_differential::*;
@@ -34,6 +36,8 @@ pub use huggingface_integration::*;
 pub use continuous_learning::*;
 pub use computer_vision_integration::*;
 pub use comprehensive_integration_engine::*;
+pub use crossfilter_engine::*;
+pub use crossfilter_web_interface::*;
 
 // Core geometric and physical types
 #[derive(Debug, Clone, Serialize, Deserialize)]
