@@ -3,20 +3,27 @@ use std::time::SystemTime;
 use serde::{Deserialize, Serialize};
 use num_complex::Complex64;
 
-pub mod gps_differential;
 pub mod core_types;
+pub mod gps_differential;
 pub mod oscillatory_framework;
 pub mod entropy_engineering;
 pub mod categorical_predeterminism;
 pub mod temporal_predetermination;
 pub mod segment_aware_atmospheric;
 pub mod helicopter_inspired_atmospheric;
+pub mod hardware_oscillatory_harvesting;
+pub mod molecular_spectrometry_engine;
 
 pub use core_types::*;
+pub use gps_differential::*;
 pub use oscillatory_framework::*;
 pub use entropy_engineering::*;
 pub use categorical_predeterminism::*;
 pub use temporal_predetermination::*;
+pub use segment_aware_atmospheric::*;
+pub use helicopter_inspired_atmospheric::*;
+pub use hardware_oscillatory_harvesting::*;
+pub use molecular_spectrometry_engine::*;
 
 // Core geometric and physical types
 #[derive(Debug, Clone, Serialize, Deserialize)]
