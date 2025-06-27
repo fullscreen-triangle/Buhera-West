@@ -14,6 +14,10 @@ pub mod helicopter_inspired_atmospheric;
 pub mod hardware_oscillatory_harvesting;
 pub mod molecular_spectrometry_engine;
 pub mod mimo_oscillatory_harvesting;
+pub mod huggingface_integration;
+pub mod continuous_learning;
+pub mod computer_vision_integration;
+pub mod comprehensive_integration_engine;
 
 pub use core_types::*;
 pub use gps_differential::*;
@@ -26,6 +30,10 @@ pub use helicopter_inspired_atmospheric::*;
 pub use hardware_oscillatory_harvesting::*;
 pub use molecular_spectrometry_engine::*;
 pub use mimo_oscillatory_harvesting::*;
+pub use huggingface_integration::*;
+pub use continuous_learning::*;
+pub use computer_vision_integration::*;
+pub use comprehensive_integration_engine::*;
 
 // Core geometric and physical types
 #[derive(Debug, Clone, Serialize, Deserialize)]
