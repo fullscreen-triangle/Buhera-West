@@ -13,6 +13,7 @@ pub mod segment_aware_atmospheric;
 pub mod helicopter_inspired_atmospheric;
 pub mod hardware_oscillatory_harvesting;
 pub mod molecular_spectrometry_engine;
+pub mod mimo_oscillatory_harvesting;
 
 pub use core_types::*;
 pub use gps_differential::*;
@@ -24,6 +25,7 @@ pub use segment_aware_atmospheric::*;
 pub use helicopter_inspired_atmospheric::*;
 pub use hardware_oscillatory_harvesting::*;
 pub use molecular_spectrometry_engine::*;
+pub use mimo_oscillatory_harvesting::*;
 
 // Core geometric and physical types
 #[derive(Debug, Clone, Serialize, Deserialize)]
