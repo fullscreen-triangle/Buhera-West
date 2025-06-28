@@ -1,7 +1,7 @@
 import React, { useRef, useMemo } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import Weather, { WeatherProps } from './Weather';
+import Weather, { WeatherProps } from '../weather/Weather';
 
 /**
  * Props for the Snow component

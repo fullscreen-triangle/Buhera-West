@@ -1,0 +1,123 @@
+[package]
+name = "terrain-reconstructor"
+version = "0.1.0"
+edition = "2021"
+description = "High-performance terrain reconstruction and agricultural analysis engine"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Linear algebra and 3D mathematics
+nalgebra = { version = "0.32", features = ["serde-serialize"] }
+nalgebra-glm = "0.18"
+
+# Mesh processing and geometry
+parry3d = "0.13"  # Successor to ncollide3d
+rstar = "0.11"    # R-tree spatial index for fast spatial queries
+
+# Ray tracing and rendering
+embree-rs = { version = "0.3", optional = true }  # Intel Embree for fast ray tracing
+rayon = "1.7"     # Data parallelism for multi-threading
+
+# Serialization and data handling
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"   # Binary serialization for performance
+
+# WebAssembly integration
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+js-sys = "0.3"
+wasm-bindgen-futures = "0.4"
+serde-wasm-bindgen = "0.5"
+console_error_panic_hook = "0.1"  # Better error messages in WASM
+
+# Image processing and data analysis
+image = { version = "0.24", features = ["png", "jpeg"] }
+ndarray = { version = "0.15", features = ["serde"] }
+statrs = "0.16"   # Statistical functions
+
+# Machine learning for agricultural analysis
+smartcore = { version = "0.3", features = ["serde"] }
+candle-core = { version = "0.3", optional = true }  # Modern ML framework
+
+# Async runtime and HTTP client
+tokio = { version = "1.0", features = ["full"], optional = true }
+reqwest = { version = "0.11", features = ["json"], optional = true }
+
+# Noise generation for terrain synthesis
+noise = "0.8"
+rand = "0.8"
+rand_chacha = "0.3"  # Deterministic random number generation
+
+# Spatial data and geographic calculations
+geo = "0.26"
+proj = "0.27"     # Coordinate system transformations
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+log = "0.4"
+wasm-logger = "0.2"
+
+# Optional features for native compilation
+[dependencies.env_logger]
+version = "0.10"
+optional = true
+
+[features]
+default = ["console_error_panic_hook"]
+
+# Enable native features for server-side processing
+native = [
+    "tokio", 
+    "reqwest", 
+    "env_logger", 
+    "embree-rs",
+    "candle-core"
+]
+
+# WebAssembly-specific features
+web = [
+    "wasm-bindgen",
+    "js-sys", 
+    "console_error_panic_hook",
+    "wasm-logger"
+]
+
+# High-performance ray tracing (requires Intel Embree)
+ray-tracing = ["embree-rs"]
+
+# Machine learning capabilities
+ml = ["smartcore", "candle-core"]
+
+# Full agricultural analysis suite
+agriculture = ["ml", "geo", "proj", "statrs"]
+
+[profile.release]
+# Optimize for speed and size in release builds
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+# Faster compilation in development
+opt-level = 0
+debug = true
+overflow-checks = true
+
+# WebAssembly-specific optimizations
+[profile.release.package."*"]
+opt-level = 3
+
+# Build configuration for different targets
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Oz", "--enable-mutable-globals"]
+
+[package.metadata.docs.rs]
+features = ["native", "agriculture", "ray-tracing", "ml"]
+targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"] 
