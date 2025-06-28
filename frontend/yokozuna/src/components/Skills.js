@@ -26,7 +26,7 @@ const Skills = () => {
   return (
 <>
       <h2 className="font-bold text-8xl mt-64 w-full text-center md:text-6xl md:mt-32">
-        Skills
+        Technologies & Capabilities
       </h2> 
     <div
       ref={ref}
@@ -40,21 +40,25 @@ const Skills = () => {
         <motion.div whileHover={{scale:1.05}} className="cursor-pointer flex rounded-full font-semibold bg-dark text-light p-8 shadow-dark
         dark:bg-light dark:text-dark lg:p-6 md:p-4 xs:text-xs xs:p-2
         ">
-        Web
+        Weather Analytics
       </motion.div>
 
-        <Skill name="HTML" x="-20vw" y="2vw" />
-
-          <Skill name="CSS" x="-5vw" y="-10vw" />
-          <Skill name="JavaScript" x="20vw" y="6vw" />
-          <Skill name="ReactJS" x="0vw" y="12vw" />
-          <Skill name="NextJS" x="-20vw" y="-15vw" />
-          <Skill name="GatsbyJS" x="15vw" y="-12vw" />
-          <Skill name="Github" x="-35vw" y="-5vw" />
-          <Skill name="Web Design" x="32vw" y="-5vw" />
-          <Skill name="Figma" x="0vw" y="-20vw" />
-          <Skill name="Firebase" x="-25vw" y="18vw" />
-          <Skill name="Tawilwind CSS" x="28vw" y="18vw" />
+        <Skill name="Rust" x="-25vw" y="2vw" />
+        <Skill name="React" x="-5vw" y="-10vw" />
+        <Skill name="Next.js" x="20vw" y="6vw" />
+        <Skill name="Three.js" x="0vw" y="12vw" />
+        <Skill name="PostgreSQL" x="-20vw" y="-15vw" />
+        <Skill name="Docker" x="15vw" y="-12vw" />
+        <Skill name="Machine Learning" x="-35vw" y="-5vw" />
+        <Skill name="Signal Processing" x="32vw" y="-5vw" />
+        <Skill name="GPS Analysis" x="0vw" y="-20vw" />
+        <Skill name="Agricultural Analytics" x="-25vw" y="18vw" />
+        <Skill name="Atmospheric Modeling" x="28vw" y="18vw" />
+        <Skill name="Data Fusion" x="38vw" y="2vw" />
+        <Skill name="Real-time Processing" x="-38vw" y="10vw" />
+        <Skill name="Satellite Data" x="0vw" y="25vw" />
+        <Skill name="API Integration" x="-15vw" y="-25vw" />
+        <Skill name="WebGL" x="25vw" y="-22vw" />
     </div></>
   );
 };

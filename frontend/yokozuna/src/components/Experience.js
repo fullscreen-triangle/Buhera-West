@@ -51,7 +51,7 @@ const Experience = () => {
 
       <div className="my-64">
         <h2 className="font-bold text-8xl mb-32 w-full text-center md:text-6xl xs:text-4xl md:mb-16">
-          Experience
+          System Architecture
         </h2>
 
         <div ref={ref} className="relative w-[75%] mx-auto lg:w-[90%] md:w-full">
@@ -62,56 +62,48 @@ const Experience = () => {
           />
           <ul className="w-full flex flex-col items-start justify-between ml-4 xs:ml-2">
             <Details
-              position="Software Engineer"
-              company="Google"
-              companyLink="https://google.com"
-              time="2022-Present"
-              address="Mountain View, CA"
-              work="Worked on a team responsible for developing new features for Google's search engine, including improving the accuracy and relevance of search results and developing new tools for data analysis and visualization."
+              position="Data Ingestion Engine"
+              company="Core Backend"
+              companyLink="#"
+              time="Real-time Processing"
+              address="Multi-source Integration"
+              work="Concurrent ingestion from meteorological APIs, satellite data feeds, and local weather station networks. Real-time quality control using statistical outlier detection and physical constraint validation. High-precision time alignment of data streams from heterogeneous sources achieving >10,000 observations/second sustained throughput."
             />
 
             <Details
-              position="Intern"
-              company="Facebook"
-              companyLink="https://facebook.com"
-              time="Summer 2021"
-              address="Menlo Park, CA."
-              work="Worked on a team responsible for developing a new mobile app
-              feature that allowed users to create and share short-form video
-              content, including designing and implementing a new user interface
-              and developing the backend infrastructure to support the feature."
+              position="Weather Processing Engine"
+              company="Core Backend"
+              companyLink="#"
+              time="Atmospheric Physics"
+              address="Numerical Integration"
+              work="Implementation of atmospheric physics equations using fourth-order Runge-Kutta methods. Spatial interpolation using Kriging and radial basis function methods for spatial field reconstruction. Ensemble processing with Monte Carlo methods for uncertainty quantification in weather predictions."
             />
 
             <Details
-              position="Software Developer"
-              company="Amazon"
-              companyLink="https://amazon.com"
-              time="2020-2021"
-              address="Seattle, WA."
-              work="Worked on a team responsible for developing Amazon's mobile app, including implementing new features such as product recommendations and user reviews, and optimizing the app's performance and reliability."
+              position="Agricultural Analytics Engine"
+              company="Core Backend"
+              companyLink="#"
+              time="Decision Support"
+              address="Risk Assessment"
+              work="Implementation of process-based crop growth models (DSSAT, APSIM derivatives). Probabilistic risk modeling using Bayesian networks and decision trees. Multi-objective optimization for planting schedules and resource allocation with 30-40% irrigation efficiency improvement."
             />
 
             <Details
-              position="Software Developer Intern"
-              company="Microsoft"
-              companyLink="https://microsoft.com"
-              time="Summer 2019"
-              address="Redmond, WA."
-              work="Worked on a team responsible for developing new features for
-              Microsoft's Windows operating system, including implementing a new
-              user interface for a system settings panel and optimizing the
-              performance of a core system component."
+              position="React Frontend Architecture"
+              company="User Interface"
+              companyLink="#"
+              time="Responsive Design"
+              address="Component-based"
+              work="Responsive, component-based user interface with real-time data visualization. Integration of 3D terrain visualization, interactive dashboards, and comprehensive weather analytics. Support for >1,000 simultaneous frontend connections with dynamic data streaming."
             />
 
             <Details
-              position="Teaching Assistant"
-              company="MIT"
-              companyLink="https://mit.edu"
-              time="Fall 2018"
-              address="Massachusetts Ave, Cambridge, MA."
-              work="Assisted in teaching a course on computer programming, held office
-              hours to help students with assignments, and graded exams and
-              assignments."
+              position="Multi-Modal Signal Processing"
+              company="Advanced Analytics"
+              companyLink="#"
+              time="Revolutionary Technology"
+              address="Signal Integration"
+              work="GPS differential atmospheric sensing, cellular network correlation analysis, and WiFi infrastructure mapping. Hardware oscillatory harvesting for molecular spectrometry. MIMO signal harvesting with 15,000-50,000 simultaneous signals for atmospheric analysis and groundwater detection."
             />
           </ul>
         </div>

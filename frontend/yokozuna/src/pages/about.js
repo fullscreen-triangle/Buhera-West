@@ -1,7 +1,7 @@
 import Layout from "@/components/Layout";
 import Head from "next/head";
 import Image from "next/image";
-import profile from "../../public/images/profile/developer-pic-2.jpg";
+import projectLogo from "../../public/logos/Pugachev_Cobra2_modified.png";
 import { useInView, useMotionValue, useSpring } from "framer-motion";
 import { useEffect, useRef } from "react";
 import Skills from "@/components/Skills";
@@ -38,10 +38,8 @@ export default function About() {
   return (
     <>
       <Head>
-        <title>Minimal Portfolio Built with Nextjs | About Page</title>
-        <meta name="description" content="Learn more about CodeBucks, a Next.js developer with a passion for 
-        creating innovative solutions. Discover tips for building a developer portfolio and insights on 
-        full-stack development, front-end development, and back-end development." />
+        <title>About Buhera-West | High-Performance Agricultural Weather Analysis</title>
+        <meta name="description" content="Learn about Buhera-West, a cutting-edge agricultural weather analysis platform designed for Southern African climatic conditions. Discover our innovative approach to computational meteorology and agricultural decision support systems." />
       </Head>
       <TransitionEffect />
       <main
@@ -49,7 +47,7 @@ export default function About() {
       >
         <Layout className="pt-16">
           <AnimatedText
-            text="Passion Fuels Purpose!"
+            text="Innovation Drives Agricultural Excellence!"
             className="mb-16 !text-8xl !leading-tight lg:!text-7xl sm:!text-6xl xs:!text-4xl sm:mb-8"
           />
 
@@ -57,26 +55,16 @@ export default function About() {
             <div className="col-span-3 flex flex-col items-start justify-start xl:col-span-4 md:order-2 
             md:col-span-8">
               <h2 className="mb-4 text-lg font-bold uppercase text-dark/75 dark:text-light/75">
-                BIOGRAPHY
+                PROJECT OVERVIEW
               </h2>
               <p className="font-medium ">
-                Hi, I&apos;m <strong>CodeBucks</strong>, a web developer and
-                UI/UX designer with a passion for creating beautiful,
-                functional, and user-centered digital experiences. With 4 years
-                of experience in the field. I am always looking for new and
-                innovative ways to bring my clients&apos; visions to life.
+                <strong>Buhera-West</strong> is a revolutionary high-performance computational platform designed for agricultural weather analysis and prediction in Southern African climatic conditions. Our system combines cutting-edge Rust-based processing with intuitive React visualization to deliver real-time weather analytics and agricultural decision support.
               </p>
               <p className="my-4 font-medium">
-                I believe that design is about more than just making things look
-                pretty – it&apos;s about solving problems and creating
-                intuitive, enjoyable experiences for users.
+                We address critical challenges in agricultural meteorology through advanced numerical weather prediction models, statistical downscaling techniques, and machine learning algorithms specifically optimized for tropical and subtropical agricultural systems.
               </p>
               <p className="font-medium">
-                Whether I&apos;m working on a website, mobile app, or other
-                digital product, I bring my commitment to design excellence and
-                user-centered thinking to every project I work on. I look
-                forward to the opportunity to bring my skills and passion to
-                your next project.
+                Our platform supports agricultural decision-making across scales from individual farm operations to regional agricultural planning, providing unprecedented capabilities for weather analysis, crop risk assessment, and sustainable farming strategies in Southern Africa.
               </p>
             </div>
             <div className="relative col-span-3 h-max rounded-2xl border-2 border-solid border-dark 
@@ -89,9 +77,9 @@ export default function About() {
         dark:bg-light  "
               />
               <Image
-                className="h-auto w-full rounded-2xl"
-                src={profile}
-                alt="Codebucks"
+                className="h-auto w-full rounded-2xl bg-white p-8"
+                src={projectLogo}
+                alt="Buhera-West Logo"
                 sizes="(max-width: 768px) 100vw,
               (max-width: 1200px) 50vw,
               33vw"
@@ -102,31 +90,31 @@ export default function About() {
             xl:items-center md:order-3">
               <div className="flex flex-col items-end justify-center xl:items-center">
                 <span className="inline-block text-7xl font-bold md:text-6xl sm:text-5xl xs:text-4xl">
-                  <AnimatedNumberFramerMotion value={40} />+
+                  <AnimatedNumberFramerMotion value={95} />%
                 </span>
                 <h2 className="mb-4 text-xl font-medium capitalize text-dark/75 dark:text-light/75 
                 xl:text-center md:text-lg sm:text-base xs:text-sm">
-                  satisfied clients
+                  Weather Accuracy
                 </h2>
               </div>
 
               <div className="flex flex-col items-end justify-center xl:items-center">
                 <span className="inline-block text-7xl font-bold md:text-6xl sm:text-5xl xs:text-4xl">
-                  <AnimatedNumberFramerMotion value={50} />+
+                  <AnimatedNumberFramerMotion value={1000} />+
                 </span>
                 <h2 className="mb-4 text-xl font-medium capitalize text-dark/75 dark:text-light/75 
                 xl:text-center md:text-lg sm:text-base xs:text-sm">
-                  projects completed
+                  Data Sources
                 </h2>
               </div>
 
               <div className="flex flex-col items-end justify-center xl:items-center">
                 <span className="inline-block text-7xl font-bold md:text-6xl sm:text-5xl xs:text-4xl">
-                  <AnimatedNumberFramerMotion value={4} />+
+                  <AnimatedNumberFramerMotion value={24} />/7
                 </span>
                 <h2 className="mb-4 text-xl font-medium capitalize text-dark/75 dark:text-light/75 
                 xl:text-center md:text-lg sm:text-base xs:text-sm">
-                  Years of experience
+                  Real-time Monitoring
                 </h2>
               </div>
             </div>

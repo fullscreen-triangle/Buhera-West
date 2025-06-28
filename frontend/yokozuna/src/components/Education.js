@@ -35,7 +35,7 @@ const Education = () => {
 
   return (
     <div className="my-64">
-      <h2 className="font-bold text-8xl mb-32 w-full text-center md:text-6xl xs:text-4xl md:mb-16">Education</h2>
+      <h2 className="font-bold text-8xl mb-32 w-full text-center md:text-6xl xs:text-4xl md:mb-16">Theoretical Foundations</h2>
 
       <div ref={ref} className="relative w-[75%] mx-auto lg:w-[90%] md:w-full">
         <motion.div
@@ -44,24 +44,31 @@ const Education = () => {
         />
         <ul className="w-full flex flex-col items-start justify-between ml-4">
           <Details
-            type="Bachelor of Science in Computer Science"
-            time="2016-2020"
-            place="Massachusetts Institute of Technology (MIT)"
-            info="Relevant courses included Data Structures and Algorithms, Computer Systems Engineering, and Artificial Intelligence."
+            type="Universal Oscillatory Framework"
+            time="Mathematical Foundation"
+            place="Core Theory"
+            info="All physical systems represented as oscillatory phenomena: Ψ(x,t) = Σ An cos(ωn t + φn) · ψn(x). Enables precise characterization of weather patterns through frequency domain analysis with Fast Fourier Transform algorithms optimized for real-time atmospheric data processing."
           />
 
           <Details
-            type="Master of Computer Science"
-            time="2020-2022"
-            place="Stanford University"
-            info="Completed a master's project on deep learning, developing a new neural network architecture for natural language understanding."
+            type="Weather Prediction Models"
+            time="Primitive Equations"
+            place="Atmospheric Physics"
+            info="Implementation of horizontal momentum equations, thermodynamic equations, and continuity equations for atmospheric motion. Ensemble forecasting using perturbation methods with probability density estimation for uncertainty quantification in agricultural decision making."
           />
 
           <Details
-            type="Online Coursework"
-            time="2016-2020"
-            place="Coursera and edX"
-            info="Completed coursework in advanced topics such as Reinforcement Learning, Computer Vision, and Machine Learning Engineering."
+            type="Agricultural Risk Modeling"
+            time="Bayesian Networks"
+            place="Decision Support"
+            info="Crop Water Stress Index (CWSI) calculation, Growing Degree Day accumulation, and Bayesian risk assessment: P(Risk|Weather,Crop,Soil). Enables quantitative agricultural risk probabilities for crop protection and irrigation optimization."
+          />
+
+          <Details
+            type="Multi-Modal Signal Processing"
+            time="Revolutionary Integration"
+            place="Advanced Analytics"
+            info="Stochastic differential equation solver with satellite strip images, Markov Decision Process for atmospheric state evolution, and interaction-free measurement systems. Entropy engineering transforms statistical mechanics into manipulable atmospheric control mechanisms."
           />
         </ul>
       </div>

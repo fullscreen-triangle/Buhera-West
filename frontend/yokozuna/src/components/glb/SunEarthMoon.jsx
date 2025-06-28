@@ -1,13 +1,13 @@
 'use client'
-import * as THREE from 'three'
 import { Canvas} from '@react-three/fiber'
 import { useRef, useEffect, Suspense} from 'react'
-import { useGLTF,   BakeShadows, Environment, useAnimations } from '@react-three/drei'
+import { useGLTF, BakeShadows, Environment, useAnimations } from '@react-three/drei'
 
 export function Model(props) {
   const group = useRef()
   const { nodes, materials, animations } = useGLTF('/models/sun_earth_moon.glb')
   const { actions } = useAnimations(animations, group)
+  
   useEffect(() => {
     if (actions && actions['Take 001']) {
       actions['Take 001'].reset().play();
@@ -20,6 +20,30 @@ export function Model(props) {
       }
     };
   }, [actions]);
+
+  // Add wireframe effects to materials
+  useEffect(() => {
+    if (materials) {
+      // Sun - Golden wireframe
+      if (materials.Material_2) {
+        materials.Material_2.wireframe = true;
+        materials.Material_2.color.set('#FFD700'); // Gold
+      }
+      
+      // Earth - Blue wireframe  
+      if (materials.Material_1) {
+        materials.Material_1.wireframe = true;
+        materials.Material_1.color.set('#4A90E2'); // Blue
+      }
+      
+      // Moon - Silver wireframe
+      if (materials.Material_3) {
+        materials.Material_3.wireframe = true;
+        materials.Material_3.color.set('#C0C0C0'); // Silver
+      }
+    }
+  }, [materials]);
+
   return (
     <group ref={group} {...props} dispose={null}>
       <group name="Sketchfab_Scene">
@@ -68,19 +92,7 @@ export function Model(props) {
 
 useGLTF.preload('/models/sun_earth_moon.glb')
 
-function CameraRig({ v = new THREE.Vector3() }) {
-    const { camera } = useThree()
-    useEffect(() => {
-      const radius = interpolate([10, 5, 10], [0, 0.5, 1], cubicBezier(0.5, 0, 0.3, 0.98))
-  
-      return scroll((info) => {
-        const p = info.y.progress
-        camera.position.set(Math.sin(p * Math.PI * 2) * radius(p), 0, Math.cos(p * Math.PI * 2) * radius(p))
-        camera.lookAt(0, 0, 0)
-      })
-    }, [])
-    return null
-  }
+// Removed unused CameraRig component that had missing dependencies
 
 const SunEarthMoon = () => {
     return (
