@@ -311,12 +311,12 @@ const Navbar = () => {
   const getSensorStates = () => {
     const path = router.asPath;
     return {
-      satellite: path.includes('weather') || path.includes('geography') || path.includes('location'),
-      cellTower: path.includes('weather') || path.includes('hydrology'),
-      weatherStation: path.includes('weather') || path.includes('agriculture'),
-      gps: path.includes('geography') || path.includes('geology') || path.includes('location'),
-      atmospheric: path.includes('weather') || path.includes('agriculture'),
-      soil: path.includes('agriculture') || path.includes('geology') || path.includes('hydrology')
+      satellite: path.includes('weather') || path.includes('geography') || path.includes('location') || path.includes('orbit') || path.includes('sensors'),
+      cellTower: path.includes('weather') || path.includes('hydrology') || path.includes('sensors'),
+      weatherStation: path.includes('weather') || path.includes('agriculture') || path.includes('sensors'),
+      gps: path.includes('geography') || path.includes('geology') || path.includes('location') || path.includes('sensors') || path.includes('orbit'),
+      atmospheric: path.includes('weather') || path.includes('agriculture') || path.includes('sensors'),
+      soil: path.includes('agriculture') || path.includes('geology') || path.includes('hydrology') || path.includes('sensors')
     };
   };
 
@@ -346,7 +346,9 @@ const Navbar = () => {
           <CustomLink className="mx-3" href="/geography" title="Geography" />
           <CustomLink className="mx-3" href="/geology" title="Geology" />
           <CustomLink className="mx-3" href="/weather" title="Weather" />
-          <CustomLink className="ml-3" href="/agriculture" title="Agriculture" />
+          <CustomLink className="mx-3" href="/agriculture" title="Agriculture" />
+          <CustomLink className="mx-3" href="/sensors" title="Sensors" />
+          <CustomLink className="ml-3" href="/orbit" title="Orbit" />
         </nav>
         
         <nav className="flex items-center justify-center flex-wrap lg:mt-2">
@@ -434,6 +436,8 @@ const Navbar = () => {
             <CustomMobileLink toggle={handleClick} className="mx-4 lg:m-0 lg:my-2" href="/geology" title="Geology" />
             <CustomMobileLink toggle={handleClick} className="ml-4 lg:m-0 lg:my-2" href="/weather" title="Weather" />
             <CustomMobileLink toggle={handleClick} className="ml-4 lg:m-0 lg:my-2" href="/agriculture" title="Agriculture" />
+            <CustomMobileLink toggle={handleClick} className="ml-4 lg:m-0 lg:my-2" href="/sensors" title="Sensors" />
+            <CustomMobileLink toggle={handleClick} className="ml-4 lg:m-0 lg:my-2" href="/orbit" title="Orbit" />
           </nav>
           
           <nav className="flex items-center justify-center mt-2">

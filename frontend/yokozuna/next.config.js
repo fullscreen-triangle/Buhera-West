@@ -22,3 +22,38 @@ module.exports = {
     return config;
   },
 };
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  experimental: {
+    esmExternals: false,
+  },
+  typescript: {
+    // Enable TypeScript support
+    ignoreBuildErrors: false,
+  },
+  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
+    // Handle mixed JS/TS/JSX/TSX files
+    config.module.rules.push({
+      test: /\.(ts|tsx|js|jsx)$/,
+      exclude: /node_modules/,
+      use: {
+        loader: 'babel-loader',
+        options: {
+          presets: [
+            ['next/babel'],
+          ],
+        },
+      },
+    });
+
+    // Handle WASM files if you're using them
+    config.experiments = {
+      ...config.experiments,
+      asyncWebAssembly: true,
+    };
+
+    return config;
+  },
+};
+
+module.exports = nextConfig;

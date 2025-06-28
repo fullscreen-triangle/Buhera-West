@@ -9,6 +9,7 @@ export { default as BaseGeoViewer } from './BaseGeoViewer';
 
 // Advanced analysis components
 export { default as TerrainDemo } from './TerrainDemo';
+export { default as RustEnhancedTerrainDemo } from './RustEnhancedTerrainDemo';
 
 // Analysis and classification utilities
 export {
@@ -41,6 +42,7 @@ export {
  *    - Real-time agricultural recommendations
  *    - Annotation and marking system
  *    - Weather data overlay
+ *    - Rust-enhanced high-detail reconstruction
  * 
  * 4. Agricultural Focus:
  *    - Soil type classification (clay, sand, loam, silt)
@@ -48,6 +50,13 @@ export {
  *    - Erosion risk assessment
  *    - Seasonal planting recommendations
  *    - Weather pattern analysis for farming decisions
+ * 
+ * 5. Rust Integration (RustEnhancedTerrainDemo):
+ *    - High-performance computation for 100m diameter areas
+ *    - Ray tracing for photorealistic rendering
+ *    - Sub-centimeter precision terrain reconstruction
+ *    - Multi-threaded agricultural analysis
+ *    - WebAssembly and server-based processing modes
  */
 
 // Default export for convenience
@@ -57,5 +66,6 @@ export default {
   LODTerrain: require('./LODTerrain').default,
   BaseGeoViewer: require('./BaseGeoViewer').default,
   TerrainDemo: require('./TerrainDemo').default,
+  RustEnhancedTerrainDemo: require('./RustEnhancedTerrainDemo').default,
   Classifier: require('./Classifier').default
 }; 
