@@ -3,7 +3,7 @@
 **/*.rs.bk
 Cargo.lock
 *.pdb
-
+/inspiration
 # OS
 .DS_Store
 .DS_Store?
