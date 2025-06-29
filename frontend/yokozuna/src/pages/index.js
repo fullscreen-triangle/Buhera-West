@@ -1,12 +1,10 @@
 'use client'
 import { Suspense } from 'react';
 import AnimatedText from "@/components/AnimatedText";
-import { HireMe } from "@/components/HireMe";
 import Layout from "@/components/Layout";
 import Head from "next/head";
 import Image from "next/image";
 import dynamic from 'next/dynamic';
-import projectLogo from "../../public/logos/Pugachev_Cobra2_modified.png";
 import TransitionEffect from "@/components/TransitionEffect";
 
 // Dynamically import the geocoder to avoid SSR issues
@@ -32,11 +30,11 @@ const GeocoderSearch = dynamic(() => import('@/components/location/GeocoderSearc
 const SunEarthMoon = dynamic(() => import('@/components/glb/SunEarthMoon'), {
   ssr: false,
   loading: () => (
-    <div className="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+    <div className="w-full h-full bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse flex items-center justify-center">
+      <span className="text-sm text-gray-500 dark:text-gray-400">Loading 3D model...</span>
+    </div>
   )
 });
-
-
 
 export default function Home() {
   return (
@@ -51,30 +49,33 @@ export default function Home() {
 
         <TransitionEffect />
         
-        {/* Full-screen GLB Background */}
-        <div className="fixed inset-0 w-full h-full -z-20">
-          <Suspense fallback={
-            <div className="w-full h-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
-          }>
-            <SunEarthMoon className="w-full h-full" />
-          </Suspense>
-        </div>
+        <article className="w-full flex items-center justify-center">
+          <Layout className="pt-0">
+            <div className="flex w-full items-start justify-between md:flex-col">
+              {/* GLB Component Container */}
+              <div className="w-1/2 h-[500px] relative block md:w-full md:h-[400px] sm:h-[300px] xs:h-[250px] overflow-hidden">
+                <Suspense fallback={
+                  <div className="w-full h-full bg-gray-200 dark:bg-gray-700 animate-pulse flex items-center justify-center">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">Loading 3D model...</span>
+                  </div>
+                }>
+                  <SunEarthMoon />
+                </Suspense>
+              </div>
 
-        {/* Floating Text Content */}
-        <article className="relative min-h-screen flex items-center text-dark dark:text-light sm:items-start z-10">
-          <Layout className="!pt-0 md:!pt-16 sm:!pt-16">
-            <div className="flex w-full items-center justify-center md:flex-col">
-              <div className="flex w-full max-w-4xl flex-col items-center text-center lg:w-full z-20 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-lg p-8 md:p-6 sm:p-4">
+              {/* Content Container */}
+              <div className="flex w-1/2 flex-col items-center self-center lg:w-full lg:text-center md:mt-8">
                 <AnimatedText
                     text="High Precision Weather Analysis for Southern Africa"
-                    className="!text-center !text-4xl xl:!text-3xl lg:!text-4xl md:!text-3xl sm:!text-3xl"
+                    className="!text-left !text-4xl xl:!text-5xl lg:!text-center lg:!text-6xl md:!text-5xl sm:!text-3xl mt-5 antialiased"
                 />
-                <p className="my-4 text-base font-medium md:text-sm sm:!text-xs text-center max-w-3xl">
+
+                <p className="my-4 text-base font-medium md:text-sm sm:!text-xs antialiased text-dark dark:text-light">
                   Advanced computational platform for agricultural weather analysis and prediction in Southern African climatic conditions. Explore real-time atmospheric data, forecasting models, and agricultural optimization tools.
                 </p>
 
                 {/* Geocoder Search Section */}
-                <div className="mt-6 w-full max-w-md">
+                <div className="mt-2 flex items-center self-start lg:self-center w-full max-w-md">
                   <Suspense fallback={
                     <div className="w-full">
                       <div className="mb-4 space-y-1">
@@ -96,16 +97,19 @@ export default function Home() {
                 </div>
               </div>
             </div>
-          </Layout>
 
-          <HireMe />
-          <div className="absolute right-8 bottom-8 inline-block w-24 md:hidden z-30">
-            <Image
+            {/* Logo */}
+            <div className="absolute right-8 bottom-8 inline-block w-24 md:hidden">
+              <Image
+                src="/logos/logo.png"
+                alt="Buhera West Logo"
+                width={96}
+                height={96}
                 className="relative h-auto w-full"
-                src={projectLogo}
-                alt="Buhera-West Logo"
-            />
-          </div>
+                priority
+              />
+            </div>
+          </Layout>
         </article>
       </>
   );

@@ -44,7 +44,7 @@ const AnimatedLogo = (props) => {
       <defs>
         <style>
           {
-            ".cls-1,.cls-2{stroke:#2563eb;stroke-width:.15px;fill:none}.cls-1{fill:#2563eb;fill-opacity:0.1}"
+            ".cls-1,.cls-2{stroke:#2563eb;stroke-width:.15px;fill:none}.cls-1{fill:#2563eb;fill-opacity:0.5}"
           }
         </style>
       </defs>
@@ -150,7 +150,7 @@ const Logo = () => {
   return (
     <div className='flex flex-col items-center justify-center mt-2'>
       <motion.div
-        className='flex items-center justify-center rounded-full w-16 h-16 bg-white dark:bg-gray-800 border-2 border-solid border-gray-300 dark:border-light overflow-hidden p-2'
+        className='flex items-center justify-center w-20 h-20 bg-gray-400 overflow-hidden p-2'
         whileHover={{
           scale: 1.1,
           transition: { duration: 0.3 }

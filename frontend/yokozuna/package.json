@@ -53,10 +53,16 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@babel/core": "^7.27.7",
+    "@babel/preset-typescript": "^7.27.1",
     "autoprefixer": "^10.4.13",
+    "babel-loader": "^10.0.0",
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
     "postcss": "^8.4.21",
-    "tailwindcss": "^3.2.7"
+    "tailwindcss": "^3.2.7",
+    "webpack-preset": "^0.2.0",
+    "webpack-preset-babel": "^0.2.0",
+    "webpack-preset-babel-react": "^0.2.0"
   }
 }

@@ -3,6 +3,7 @@ import Layout from "./Layout";
 
 const Footer = () => {
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isClient, setIsClient] = useState(false);
   const [systemStatus, setSystemStatus] = useState({
     dataStreamStatus: 'ACTIVE',
     satelliteConnections: 47,
@@ -14,6 +15,11 @@ const Footer = () => {
     dataAccuracy: 99.7,
     storageUtilization: 73.2
   });
+
+  // Prevent hydration mismatch by only rendering dynamic content on client
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Update time every second for atomic clock precision display
   useEffect(() => {
@@ -79,10 +85,10 @@ const Footer = () => {
             </h3>
             <div className="space-y-1 text-xs">
               <div>
-                <span className="text-gray-500">UTC:</span> {time.utc.slice(0, -5)}Z
+                <span className="text-gray-500">UTC:</span> {isClient ? time.utc.slice(0, -5) + 'Z' : 'Loading...'}
               </div>
               <div>
-                <span className="text-gray-500">Local (CAT):</span> {time.local}
+                <span className="text-gray-500">Local (CAT):</span> {isClient ? time.local : 'Loading...'}
               </div>
               <div>
                 <span className="text-gray-500">Sync Drift:</span> ±0.003ms
@@ -161,7 +167,7 @@ const Footer = () => {
                 <span className="text-gray-500">Storage:</span> {systemStatus.storageUtilization}%
               </div>
               <div>
-                <span className="text-gray-500">Last Sync:</span> {systemStatus.lastDataSync.toLocaleTimeString()}
+                <span className="text-gray-500">Last Sync:</span> {isClient ? systemStatus.lastDataSync.toLocaleTimeString() : 'Loading...'}
               </div>
               <div>
                 <span className="text-gray-500">Uptime:</span> 99.97%

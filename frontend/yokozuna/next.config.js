@@ -4,8 +4,15 @@ const CopyPlugin = require('copy-webpack-plugin');
 const path = require('path');
 
 /** @type {import('next').NextConfig} */
-module.exports = {
-  webpack: (config, { isServer }) => {
+const nextConfig = {
+  experimental: {
+    esmExternals: false,
+  },
+  typescript: {
+    // Enable TypeScript support
+    ignoreBuildErrors: false,
+  },
+  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
     // 1. Cesium static assets
     config.plugins.push(
       new CopyPlugin({
@@ -18,33 +25,6 @@ module.exports = {
       }),
       new webpack.DefinePlugin({ CESIUM_BASE_URL: JSON.stringify('/cesium') })
     );
-
-    return config;
-  },
-};
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  experimental: {
-    esmExternals: false,
-  },
-  typescript: {
-    // Enable TypeScript support
-    ignoreBuildErrors: false,
-  },
-  webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
-    // Handle mixed JS/TS/JSX/TSX files
-    config.module.rules.push({
-      test: /\.(ts|tsx|js|jsx)$/,
-      exclude: /node_modules/,
-      use: {
-        loader: 'babel-loader',
-        options: {
-          presets: [
-            ['next/babel'],
-          ],
-        },
-      },
-    });
 
     // Handle WASM files if you're using them
     config.experiments = {

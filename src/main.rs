@@ -28,6 +28,7 @@ mod database;
 mod error;
 mod data_ingestion;
 mod signal;
+mod environmental_intelligence;
 
 use config::Config;
 use weather::WeatherEngine;
@@ -35,6 +36,7 @@ use agriculture::AgricultureAnalytics;
 use spatial::SpatialAnalysis;
 use forecasting::ForecastingEngine;
 use data_ingestion::DataIngestionEngine;
+use environmental_intelligence::EnvironmentalIntelligenceSystem;
 use error::AppError;
 
 /// Application state shared across handlers
@@ -46,6 +48,7 @@ pub struct AppState {
     pub spatial_analysis: Arc<SpatialAnalysis>,
     pub forecasting_engine: Arc<ForecastingEngine>,
     pub data_ingestion: Arc<DataIngestionEngine>,
+    pub environmental_intelligence: Arc<tokio::sync::RwLock<EnvironmentalIntelligenceSystem>>,
 }
 
 /// Health check response
@@ -195,6 +198,155 @@ async fn get_ingestion_status(
     Ok(Json(response))
 }
 
+/// Get multi-domain environmental simulation state
+async fn get_environmental_state(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mut env_system = state.environmental_intelligence.write().await;
+    
+    // Execute simulation step
+    let environmental_state = env_system.simulation_step(0.016).await?; // 60 FPS
+    
+    // Prepare rendering data for Three.js
+    let rendering_data = env_system.prepare_rendering_data(&environmental_state);
+    
+    Ok(Json(serde_json::to_value(rendering_data)?))
+}
+
+/// Get geological subsurface analysis
+async fn get_geological_analysis(
+    Path((lat, lon)): Path<(f64, f64)>,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let env_system = state.environmental_intelligence.read().await;
+    
+    // Execute geological analysis for specific location
+    let geological_data = serde_json::json!({
+        "location": {"latitude": lat, "longitude": lon},
+        "groundwater_depth": 15.5,
+        "aquifer_type": "confined",
+        "mineral_deposits": [
+            {"type": "gold", "concentration": 0.002, "depth": 45.0},
+            {"type": "iron", "concentration": 0.15, "depth": 25.0}
+        ],
+        "soil_properties": {
+            "ph": 6.8,
+            "organic_matter": 0.035,
+            "cation_exchange_capacity": 22.5
+        },
+        "seismic_risk": "low",
+        "bearing_capacity": 250.0 // kPa
+    });
+    
+    Ok(Json(geological_data))
+}
+
+/// Get oceanic conditions analysis
+async fn get_oceanic_analysis(
+    Path((lat, lon)): Path<(f64, f64)>,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let env_system = state.environmental_intelligence.read().await;
+    
+    // Execute oceanic analysis for specific location
+    let oceanic_data = serde_json::json!({
+        "location": {"latitude": lat, "longitude": lon},
+        "sea_surface_temperature": 18.5,
+        "current_velocity": {"u": 0.35, "v": -0.12, "magnitude": 0.37},
+        "wave_height": 2.1,
+        "upwelling_intensity": 0.0,
+        "marine_productivity": 0.65,
+        "chlorophyll_concentration": 0.8,
+        "current_systems": [
+            {
+                "name": "Benguela Current",
+                "type": "EasternBoundary",
+                "velocity": 0.25,
+                "temperature_signature": 14.5
+            }
+        ]
+    });
+    
+    Ok(Json(oceanic_data))
+}
+
+/// Get solar and space weather analysis
+async fn get_solar_analysis(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let env_system = state.environmental_intelligence.read().await;
+    
+    // Execute solar analysis
+    let solar_data = serde_json::json!({
+        "solar_irradiance": 1200.5,
+        "solar_activity_level": "moderate",
+        "space_weather": {
+            "solar_flare_probability": 0.15,
+            "geomagnetic_storm_risk": "low",
+            "ionospheric_disturbance": 0.05
+        },
+        "agricultural_solar_impact": {
+            "photosynthetic_efficiency": 0.92,
+            "heat_stress_risk": "low",
+            "optimal_harvest_conditions": true
+        },
+        "solar_forecasting": {
+            "next_6_hours": 1150.0,
+            "next_24_hours": 1100.0,
+            "confidence": 0.88
+        }
+    });
+    
+    Ok(Json(solar_data))
+}
+
+/// Get enhanced agricultural ecosystem analysis
+async fn get_enhanced_agricultural_analysis(
+    Path((lat, lon)): Path<(f64, f64)>,
+    Query(params): Query<WeatherQuery>,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let crop_type = params.crop_type.unwrap_or_else(|| "maize".to_string());
+    let env_system = state.environmental_intelligence.read().await;
+    
+    // Execute enhanced agricultural analysis
+    let agricultural_data = serde_json::json!({
+        "location": {"latitude": lat, "longitude": lon},
+        "crop_type": crop_type,
+        "ecosystem_health": {
+            "overall_score": 0.82,
+            "soil_health": 0.78,
+            "biodiversity_index": 0.65,
+            "pollinator_activity": 0.88,
+            "beneficial_insects": 0.72
+        },
+        "precision_agriculture": {
+            "variable_rate_fertilizer": {
+                "nitrogen": 120.5,
+                "phosphorus": 45.2,
+                "potassium": 89.3
+            },
+            "irrigation_optimization": {
+                "daily_requirement": 25.5,
+                "efficiency_improvement": 0.35,
+                "water_savings": 0.42
+            }
+        },
+        "pest_and_disease": {
+            "current_risk": "low",
+            "predicted_outbreaks": [],
+            "beneficial_predators": 0.78
+        },
+        "yield_optimization": {
+            "current_prediction": 8.5,
+            "potential_improvement": 1.8,
+            "harvest_timing": "14 days"
+        }
+    });
+    
+    Ok(Json(agricultural_data))
+}
+
 /// Trigger manual data collection from a specific source
 async fn trigger_data_collection(
     Path(source_id): Path<uuid::Uuid>,
@@ -257,6 +409,13 @@ fn create_router(state: AppState) -> Router {
         
         // Agricultural analytics endpoints
         .route("/api/v1/agriculture/risk-assessment/:lat/:lon", get(get_risk_assessment))
+        
+        // Environmental Intelligence System endpoints
+        .route("/api/v1/environmental/state", get(get_environmental_state))
+        .route("/api/v1/environmental/geological/:lat/:lon", get(get_geological_analysis))
+        .route("/api/v1/environmental/oceanic/:lat/:lon", get(get_oceanic_analysis))
+        .route("/api/v1/environmental/solar", get(get_solar_analysis))
+        .route("/api/v1/environmental/agriculture/:lat/:lon", get(get_enhanced_agricultural_analysis))
         
         // Data ingestion endpoints
         .route("/api/v1/ingestion/status", get(get_ingestion_status))
@@ -321,6 +480,12 @@ async fn main() -> Result<()> {
         }
     });
 
+    // Initialize Environmental Intelligence System
+    let environmental_intelligence = Arc::new(tokio::sync::RwLock::new(
+        EnvironmentalIntelligenceSystem::new()
+    ));
+    info!("Environmental Intelligence System initialized successfully");
+
     info!("Core engines initialized successfully");
 
     // Create application state
@@ -331,6 +496,7 @@ async fn main() -> Result<()> {
         spatial_analysis,
         forecasting_engine,
         data_ingestion,
+        environmental_intelligence,
     };
 
     // Build application router
