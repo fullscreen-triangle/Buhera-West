@@ -3,311 +3,337 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stats, Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import PropTypes from 'prop-types';
-
-// TODO: Create these component modules
-// import { GeologicalVisualization } from './geological/GeologicalVisualization';
-// import { OceanicVisualization } from './oceanic/OceanicVisualization';
-// import { SolarVisualization } from './solar/SolarVisualization';
-// import { AgriculturalVisualization } from './agricultural/AgriculturalVisualization';
-// import { AtmosphericVisualization } from './atmospheric/AtmosphericVisualization';
-// import { PerformanceMonitor } from './performance/PerformanceMonitor';
+import { GeologicalVisualization } from './geological/GeologicalVisualization';
+import { OceanicVisualization } from './ocean/OceanicVisualization';
+import { SolarVisualization } from './solar/SolarVisualization';
+import { AgriculturalVisualization } from './agricultural/AgriculturalVisualization';
+import { AtmosphericVisualization } from './atmospheric/AtmosphericVisualization';
+import { PerformanceMonitor } from './performance/PerformanceMonitor';
 
 /**
- * Main Environmental Intelligence Viewer Component
- * Integrates all environmental domains with high-performance 60 FPS rendering
+ * Environmental Intelligence Viewer - Main visualization component
+ * Integrates geological, oceanic, solar, agricultural, and atmospheric visualizations
  */
-export const EnvironmentalIntelligenceViewer = ({
-  environmentalData,
-  websocketUrl,
+export const EnvironmentalIntelligenceViewer = ({ 
+  geologicalData,
+  oceanicData, 
+  solarData,
+  agriculturalData,
+  atmosphericData,
+  enabled = true,
   targetFPS = 60,
-  enabledDomains = {
+  onPerformanceUpdate,
+  debugMode = false
+}) => {
+  const canvasRef = useRef();
+  const performanceMonitorRef = useRef();
+  
+  // Component visibility state
+  const [componentVisibility, setComponentVisibility] = useState({
     geological: true,
     oceanic: true,
     solar: true,
     agricultural: true,
     atmospheric: true
-  },
-  qualitySettings = {
-    particleCount: 10000,
-    meshResolution: 256,
-    shadowQuality: 'medium',
-    enableAdvancedEffects: true
-  },
-  cameraConfig = {
-    position: [100, 50, 100],
-    target: [0, 0, 0],
-    fov: 60
-  },
-  onPerformanceUpdate,
-  focusDomain = null
-}) => {
-  // Performance monitoring state
-  const [currentFPS, setCurrentFPS] = useState(60);
-  const [adaptiveQuality, setAdaptiveQuality] = useState(1.0);
-  const [isPerformanceOptimized, setIsPerformanceOptimized] = useState(false);
+  });
   
-  // Real-time data state
-  const [liveData, setLiveData] = useState(environmentalData || null);
-  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  // Performance and quality state
+  const [performanceMetrics, setPerformanceMetrics] = useState({
+    fps: 60,
+    qualityLevel: 1.0,
+    memoryUsage: 0
+  });
   
-  // Refs for Three.js objects
-  const canvasRef = useRef(null);
-  const controlsRef = useRef(null);
-  const performanceRef = useRef(null);
-  
-  // WebSocket connection for real-time data
-  useEffect(() => {
-    if (!websocketUrl) return;
+  // Auto-adjust quality based on data complexity
+  const qualityLevel = useMemo(() => {
+    if (!enabled) return 0.1;
     
-    const ws = new WebSocket(websocketUrl);
-    setConnectionStatus('connecting');
+    const baseQuality = performanceMetrics.qualityLevel;
     
-    ws.onopen = () => {
-      setConnectionStatus('connected');
-      console.log('Connected to Rust computational engine');
-    };
+    // Adjust based on data size
+    const geologicalComplexity = geologicalData?.subsurfaceMesh?.length || 0;
+    const oceanicComplexity = oceanicData?.surfaceMesh?.length || 0;
+    const agriculturalComplexity = agriculturalData?.cropPositions?.length || 0;
     
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        setLiveData(data);
-        
-        // Update performance metrics
-        if (data.performance && onPerformanceUpdate) {
-          onPerformanceUpdate(data.performance);
-        }
-      } catch (error) {
-        console.error('Error parsing WebSocket data:', error);
-      }
-    };
+    const totalComplexity = geologicalComplexity + oceanicComplexity + agriculturalComplexity;
     
-    ws.onclose = () => {
-      setConnectionStatus('disconnected');
-      console.log('Disconnected from Rust computational engine');
-    };
-    
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      setConnectionStatus('disconnected');
-    };
-    
-    return () => {
-      ws.close();
-    };
-  }, [websocketUrl, onPerformanceUpdate]);
-  
-  // Adaptive quality management based on performance
-  const adaptiveQualityManager = useCallback(() => {
-    const frameBudget = 1000 / targetFPS; // ms per frame
-    const performanceData = liveData?.performance;
-    
-    if (performanceData) {
-      const currentFrameTime = 1000 / performanceData.fps;
-      
-      if (currentFrameTime > frameBudget * 1.2) {
-        // Reduce quality if performance is below target
-        setAdaptiveQuality(prev => Math.max(0.1, prev * 0.9));
-        setIsPerformanceOptimized(true);
-      } else if (currentFrameTime < frameBudget * 0.8 && adaptiveQuality < 1.0) {
-        // Increase quality if performance allows
-        setAdaptiveQuality(prev => Math.min(2.0, prev * 1.1));
-      }
-      
-      setCurrentFPS(performanceData.fps);
+    if (totalComplexity > 100000) {
+      return Math.max(0.3, baseQuality * 0.7);
+    } else if (totalComplexity > 50000) {
+      return Math.max(0.5, baseQuality * 0.85);
     }
-  }, [targetFPS, liveData?.performance, adaptiveQuality]);
-  
-  // Apply adaptive quality management
-  useEffect(() => {
-    const interval = setInterval(adaptiveQualityManager, 1000);
-    return () => clearInterval(interval);
-  }, [adaptiveQualityManager]);
-  
-  // Optimized quality settings based on adaptive quality
-  const optimizedQualitySettings = useMemo(() => ({
-    particleCount: Math.floor(qualitySettings.particleCount * adaptiveQuality),
-    meshResolution: Math.floor(qualitySettings.meshResolution * adaptiveQuality),
-    shadowQuality: adaptiveQuality > 0.7 ? qualitySettings.shadowQuality : 'low',
-    enableAdvancedEffects: qualitySettings.enableAdvancedEffects && adaptiveQuality > 0.5
-  }), [qualitySettings, adaptiveQuality]);
-  
-  // Domain-specific quality optimization
-  const domainQualitySettings = useMemo(() => {
-    const baseQuality = adaptiveQuality;
     
-    // Boost quality for focused domain, reduce for others
-    if (focusDomain) {
-      return {
-        geological: focusDomain === 'geological' ? baseQuality * 1.5 : baseQuality * 0.5,
-        oceanic: focusDomain === 'oceanic' ? baseQuality * 1.5 : baseQuality * 0.5,
-        solar: focusDomain === 'solar' ? baseQuality * 1.5 : baseQuality * 0.5,
-        agricultural: focusDomain === 'agricultural' ? baseQuality * 1.5 : baseQuality * 0.5,
-        atmospheric: focusDomain === 'atmospheric' ? baseQuality * 1.5 : baseQuality * 0.5
-      };
+    return baseQuality;
+  }, [performanceMetrics.qualityLevel, geologicalData, oceanicData, agriculturalData, enabled]);
+  
+  // Performance monitoring callback
+  const handlePerformanceUpdate = useCallback((metrics) => {
+    setPerformanceMetrics(metrics);
+    
+    // Auto-disable components if performance is critical
+    if (metrics.fps < targetFPS * 0.3) {
+      setComponentVisibility(prev => ({
+        geological: true, // Keep most important
+        oceanic: prev.oceanic && metrics.fps > 15,
+        solar: prev.solar && metrics.fps > 20,
+        agricultural: true, // Keep most important
+        atmospheric: prev.atmospheric && metrics.fps > 25
+      }));
     }
+    
+    if (onPerformanceUpdate) {
+      onPerformanceUpdate(metrics);
+    }
+  }, [targetFPS, onPerformanceUpdate]);
+  
+  // Lighting configuration based on time and solar data
+  const lightingConfig = useMemo(() => {
+    const solarActivity = solarData?.activityLevel || 'moderate';
+    const baseIntensity = 0.8;
+    
+    const intensityMultiplier = {
+      quiet: 0.7,
+      moderate: 1.0,
+      active: 1.2,
+      severe: 1.4,
+      extreme: 1.6
+    }[solarActivity] || 1.0;
     
     return {
-      geological: baseQuality,
-      oceanic: baseQuality,
-      solar: baseQuality,
-      agricultural: baseQuality,
-      atmospheric: baseQuality
+      ambientIntensity: 0.2 * intensityMultiplier,
+      directionalIntensity: baseIntensity * intensityMultiplier,
+      directionalColor: solarActivity === 'extreme' ? 0xff8888 : 0xffffff
     };
-  }, [adaptiveQuality, focusDomain]);
+  }, [solarData?.activityLevel]);
+  
+  // Camera position based on active visualizations
+  const cameraPosition = useMemo(() => {
+    const activeComponents = Object.entries(componentVisibility)
+      .filter(([_, visible]) => visible)
+      .map(([component, _]) => component);
+    
+    if (activeComponents.length === 1) {
+      // Focus on single component
+      const positions = {
+        geological: [0, 50, 100],
+        oceanic: [0, 100, 200],
+        solar: [2200, 300, 200],
+        agricultural: [0, 100, 150],
+        atmospheric: [0, 200, 300]
+      };
+      return positions[activeComponents[0]] || [0, 100, 200];
+    }
+    
+    // Multi-component overview
+    return [500, 300, 800];
+  }, [componentVisibility]);
+  
+  if (!enabled) return null;
   
   return (
-    <div className="environmental-intelligence-viewer w-full h-screen relative">
-      {/* Performance HUD */}
-      <div className="absolute top-4 left-4 z-10 bg-black bg-opacity-50 text-white p-2 rounded">
-        <div>FPS: {currentFPS.toFixed(1)}</div>
-        <div>Quality: {(adaptiveQuality * 100).toFixed(0)}%</div>
-        <div>Status: {connectionStatus}</div>
-        {isPerformanceOptimized && (
-          <div className="text-yellow-400">Performance Optimized</div>
-        )}
-      </div>
-      
-      {/* Main 3D Canvas */}
+    <div style={{ width: '100%', height: '100vh', position: 'relative' }}>
       <Canvas
         ref={canvasRef}
-        camera={{
-          position: cameraConfig.position,
-          fov: cameraConfig.fov,
+        camera={{ 
+          position: cameraPosition, 
+          fov: 60,
           near: 0.1,
           far: 10000
         }}
-        shadows={optimizedQualitySettings.shadowQuality !== 'low'}
-        gl={{
-          antialias: adaptiveQuality > 0.5,
+        shadows={qualityLevel > 0.5}
+        gl={{ 
+          antialias: qualityLevel > 0.7,
+          powerPreference: "high-performance",
           alpha: false,
           stencil: false,
-          depth: true,
-          logarithmicDepthBuffer: true,
-          powerPreference: 'high-performance'
+          depth: true
         }}
-        onCreated={({ gl }) => {
-          // Optimize WebGL settings for high performance
-          gl.setPixelRatio(Math.min(window.devicePixelRatio, adaptiveQuality * 2));
-          gl.outputColorSpace = THREE.SRGBColorSpace;
-          gl.toneMapping = THREE.ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.2;
-        }}
+        dpr={Math.min(2, window.devicePixelRatio * qualityLevel)}
       >
+        {/* Performance Monitor */}
+        <PerformanceMonitor
+          ref={performanceMonitorRef}
+          targetFPS={targetFPS}
+          onPerformanceUpdate={handlePerformanceUpdate}
+          enableAdaptiveQuality={true}
+          debugMode={debugMode}
+        />
+        
         {/* Lighting Setup */}
-        <ambientLight intensity={0.2} />
+        <ambientLight intensity={lightingConfig.ambientIntensity} />
         <directionalLight
           position={[100, 100, 50]}
-          intensity={0.8}
-          castShadow={optimizedQualitySettings.shadowQuality !== 'low'}
-          shadow-mapSize-width={optimizedQualitySettings.shadowQuality === 'high' ? 2048 : 1024}
-          shadow-mapSize-height={optimizedQualitySettings.shadowQuality === 'high' ? 2048 : 1024}
+          intensity={lightingConfig.directionalIntensity}
+          color={lightingConfig.directionalColor}
+          castShadow={qualityLevel > 0.5}
+          shadow-mapSize={qualityLevel > 0.8 ? [2048, 2048] : [1024, 1024]}
         />
         
-        {/* Environmental Visualizations - TODO: Uncomment when components are created */}
-        {/* {enabledDomains.geological && liveData?.geological && (
+        {/* Sky and Environment */}
+        {qualityLevel > 0.4 && (
+          <Sky
+            distance={450000}
+            sunPosition={[0, 1, 0]}
+            inclination={0}
+            azimuth={0.25}
+          />
+        )}
+        
+        {/* Main Visualization Components */}
+        {componentVisibility.geological && (
           <GeologicalVisualization
-            data={liveData.geological}
-            qualityLevel={domainQualitySettings.geological}
-            enabled={enabledDomains.geological}
+            data={geologicalData}
+            qualityLevel={qualityLevel}
+            enabled={componentVisibility.geological}
           />
         )}
         
-        {enabledDomains.oceanic && liveData?.oceanic && (
+        {componentVisibility.oceanic && (
           <OceanicVisualization
-            data={liveData.oceanic}
-            qualityLevel={domainQualitySettings.oceanic}
-            enabled={enabledDomains.oceanic}
+            data={oceanicData}
+            qualityLevel={qualityLevel}
+            enabled={componentVisibility.oceanic}
           />
         )}
         
-        {enabledDomains.solar && liveData?.solar && (
+        {componentVisibility.solar && (
           <SolarVisualization
-            data={liveData.solar}
-            qualityLevel={domainQualitySettings.solar}
-            enabled={enabledDomains.solar}
+            data={solarData}
+            qualityLevel={qualityLevel}
+            enabled={componentVisibility.solar}
           />
         )}
         
-        {enabledDomains.agricultural && liveData?.agricultural && (
+        {componentVisibility.agricultural && (
           <AgriculturalVisualization
-            data={liveData.agricultural}
-            qualityLevel={domainQualitySettings.agricultural}
-            enabled={enabledDomains.agricultural}
+            data={agriculturalData}
+            qualityLevel={qualityLevel}
+            enabled={componentVisibility.agricultural}
           />
         )}
         
-        {enabledDomains.atmospheric && liveData?.atmospheric && (
+        {componentVisibility.atmospheric && (
           <AtmosphericVisualization
-            data={liveData.atmospheric}
-            qualityLevel={domainQualitySettings.atmospheric}
-            enabled={enabledDomains.atmospheric}
+            data={atmosphericData}
+            qualityLevel={qualityLevel}
+            enabled={componentVisibility.atmospheric}
           />
-        )} */}
+        )}
         
-        {/* Placeholder visualization mesh */}
-        <mesh position={[0, 0, 0]}>
-          <boxGeometry args={[10, 10, 10]} />
-          <meshStandardMaterial color="orange" />
+        {/* Ground Plane for Reference */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
+          <planeGeometry args={[4000, 4000]} />
+          <meshLambertMaterial color="#8D6E63" transparent opacity={0.3} />
         </mesh>
         
-        {/* Environment and Sky */}
-        <Sky
-          distance={450000}
-          sunPosition={[100, 20, 100]}
-          inclination={0}
-          azimuth={0.25}
-        />
+        {/* Reference Objects for Scale */}
+        {debugMode && (
+          <>
+            <mesh position={[0, 5, 0]} castShadow>
+              <boxGeometry args={[10, 10, 10]} />
+              <meshStandardMaterial color="#FF5722" />
+            </mesh>
+            <mesh position={[100, 5, 0]} castShadow>
+              <sphereGeometry args={[5, 16, 16]} />
+              <meshStandardMaterial color="#4CAF50" />
+            </mesh>
+          </>
+        )}
         
-        {/* Controls */}
+        {/* Camera Controls */}
         <OrbitControls
-          ref={controlsRef}
-          target={cameraConfig.target}
           enablePan={true}
           enableZoom={true}
           enableRotate={true}
+          minDistance={10}
           maxDistance={5000}
-          minDistance={1}
+          maxPolarAngle={Math.PI / 1.8}
         />
         
-        {/* Performance Monitor - TODO: Create PerformanceMonitor component */}
-        {/* <PerformanceMonitor
-          ref={performanceRef}
-          targetFPS={targetFPS}
-          onPerformanceUpdate={setCurrentFPS}
-        /> */}
-        
-        {/* Debug Stats (development only) */}
-        {process.env.NODE_ENV === 'development' && <Stats />}
+        {/* Performance Stats */}
+        {debugMode && <Stats />}
       </Canvas>
+      
+      {/* Control Panel */}
+      <div style={{
+        position: 'absolute',
+        top: '10px',
+        left: '10px',
+        background: 'rgba(0, 0, 0, 0.8)',
+        color: 'white',
+        padding: '15px',
+        borderRadius: '5px',
+        fontFamily: 'sans-serif',
+        fontSize: '14px',
+        zIndex: 1000,
+        minWidth: '200px'
+      }}>
+        <h3 style={{ margin: '0 0 10px 0' }}>Environmental Intelligence</h3>
+        
+        {/* Component Toggles */}
+        {Object.entries(componentVisibility).map(([component, visible]) => (
+          <label key={component} style={{ display: 'block', marginBottom: '5px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={visible}
+              onChange={(e) => setComponentVisibility(prev => ({
+                ...prev,
+                [component]: e.target.checked
+              }))}
+              style={{ marginRight: '8px' }}
+            />
+            {component.charAt(0).toUpperCase() + component.slice(1)}
+          </label>
+        ))}
+        
+        {/* Performance Info */}
+        <div style={{ marginTop: '15px', borderTop: '1px solid #444', paddingTop: '10px' }}>
+          <div>FPS: {performanceMetrics.fps?.toFixed(1) || 60}</div>
+          <div>Quality: {Math.round((qualityLevel) * 100)}%</div>
+          <div>Memory: {performanceMetrics.memoryUsage?.toFixed(0) || 0}MB</div>
+        </div>
+      </div>
     </div>
   );
 };
 
-// PropTypes for type checking
 EnvironmentalIntelligenceViewer.propTypes = {
-  environmentalData: PropTypes.object,
-  websocketUrl: PropTypes.string,
+  geologicalData: PropTypes.shape({
+    subsurfaceMesh: PropTypes.instanceOf(Float32Array),
+    mineralDeposits: PropTypes.array,
+    groundwaterFlow: PropTypes.array,
+  }),
+  oceanicData: PropTypes.shape({
+    surfaceMesh: PropTypes.instanceOf(Float32Array),
+    currentVectors: PropTypes.array,
+    temperatureField: PropTypes.instanceOf(Float32Array),
+    waveData: PropTypes.object,
+  }),
+  solarData: PropTypes.shape({
+    solarSurface: PropTypes.instanceOf(Float32Array),
+    coronaParticles: PropTypes.array,
+    magneticFieldLines: PropTypes.array,
+    solarWindFlow: PropTypes.array,
+    activityLevel: PropTypes.string,
+  }),
+  agriculturalData: PropTypes.shape({
+    fieldMesh: PropTypes.instanceOf(Float32Array),
+    cropPositions: PropTypes.array,
+    sensorNetwork: PropTypes.array,
+    irrigationCoverage: PropTypes.array,
+    yieldPrediction: PropTypes.array,
+  }),
+  atmosphericData: PropTypes.shape({
+    pressureField: PropTypes.instanceOf(Float32Array),
+    temperatureField: PropTypes.instanceOf(Float32Array),
+    humidityField: PropTypes.instanceOf(Float32Array),
+    windVectors: PropTypes.array,
+    gpsSignalData: PropTypes.object,
+  }),
+  enabled: PropTypes.bool,
   targetFPS: PropTypes.number,
-  enabledDomains: PropTypes.shape({
-    geological: PropTypes.bool,
-    oceanic: PropTypes.bool,
-    solar: PropTypes.bool,
-    agricultural: PropTypes.bool,
-    atmospheric: PropTypes.bool,
-  }),
-  qualitySettings: PropTypes.shape({
-    particleCount: PropTypes.number,
-    meshResolution: PropTypes.number,
-    shadowQuality: PropTypes.oneOf(['low', 'medium', 'high']),
-    enableAdvancedEffects: PropTypes.bool,
-  }),
-  cameraConfig: PropTypes.shape({
-    position: PropTypes.array,
-    target: PropTypes.array,
-    fov: PropTypes.number,
-  }),
   onPerformanceUpdate: PropTypes.func,
-  focusDomain: PropTypes.oneOf(['geological', 'oceanic', 'solar', 'agricultural', 'atmospheric', null]),
+  debugMode: PropTypes.bool,
 };
 
 export default EnvironmentalIntelligenceViewer; 
