@@ -3,46 +3,19 @@ import { Canvas} from '@react-three/fiber'
 import { useRef, useEffect, Suspense} from 'react'
 import { useGLTF, BakeShadows, Environment, useAnimations } from '@react-three/drei'
 
-export function Model(props) {
+function Model(props) {
   const group = useRef()
   const { nodes, materials, animations } = useGLTF('/models/sun_earth_moon.glb')
   const { actions } = useAnimations(animations, group)
+
+
+    useEffect(() => {
+      actions['Take 001'].play()
+    })
   
-  useEffect(() => {
-    if (actions && actions['Take 001']) {
-      actions['Take 001'].reset().play();
-    }
 
-    // Optional cleanup
-    return () => {
-      if (actions && actions['Take 001']) {
-        actions['Take 001'].stop();
-      }
-    };
-  }, [actions]);
 
-  // Add wireframe effects to materials
-  useEffect(() => {
-    if (materials) {
-      // Sun - Golden wireframe
-      if (materials.Material_2) {
-        materials.Material_2.wireframe = true;
-        materials.Material_2.color.set('#FFD700'); // Gold
-      }
-      
-      // Earth - Blue wireframe  
-      if (materials.Material_1) {
-        materials.Material_1.wireframe = true;
-        materials.Material_1.color.set('#4A90E2'); // Blue
-      }
-      
-      // Moon - Silver wireframe
-      if (materials.Material_3) {
-        materials.Material_3.wireframe = true;
-        materials.Material_3.color.set('#C0C0C0'); // Silver
-      }
-    }
-  }, [materials]);
+ 
 
   return (
     <group ref={group} {...props} dispose={null}>
@@ -96,7 +69,13 @@ useGLTF.preload('/models/sun_earth_moon.glb')
 
 const SunEarthMoon = () => {
     return (
-        <Canvas shadows camera={{ position: [0, 6, 16], fov: 50 }}  className='animate-[fade-in_1s_ease_0.3s_forwards]'>
+        <Canvas 
+            shadows 
+            dpr={[1, 1.5]}
+            camera={{ position: [-1.5, 1, 5.5], fov: 45, near: 1, far: 20 }}   
+            className='w-full h-full animate-[fade-in_1s_ease_0.3s_forwards]'
+            style={{ width: '100%', height: '100%' }}
+        >
             <hemisphereLight intensity={0.5} />
             <ambientLight intensity={0.2} />
             <directionalLight
@@ -111,7 +90,7 @@ const SunEarthMoon = () => {
             <Suspense fallback={null}>
                 <Environment files="/environments/potsdamer_platz_1k.hdr" />
 
-                <Model position={[0, -2, 0]} scale={1} />
+                <Model position={[0, -2, 0]} scale={0.8} />
 
             </Suspense>
 
@@ -120,4 +99,4 @@ const SunEarthMoon = () => {
     )
 }
 
-export default SunEarthMoon;
+export default SunEarthMoon ;

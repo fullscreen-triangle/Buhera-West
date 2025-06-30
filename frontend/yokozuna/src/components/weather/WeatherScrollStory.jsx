@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Lenis } from '@studio-freight/lenis'
+import Lenis from '@studio-freight/lenis'
 import { gsap } from 'gsap/dist/gsap'
 import { ScrollTrigger } from 'gsap/dist/ScrollTrigger'
 import * as d3 from 'd3'

@@ -5,7 +5,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import TransitionEffect from '@/components/TransitionEffect';
-import Layout from '@/components/Layout';
+
 
 // Mapbox imports
 import mapboxgl from 'mapbox-gl';

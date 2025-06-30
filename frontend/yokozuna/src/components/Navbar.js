@@ -1,6 +1,5 @@
 import Link from "next/link";
 import React, { useState } from "react";
-import Logo from "./Logo";
 import { useRouter } from "next/router";
 import { motion } from "framer-motion";
 import { useThemeSwitch } from "./Hooks/useThemeSwitch";
@@ -348,7 +347,8 @@ const Navbar = () => {
           <CustomLink className="mx-3" href="/weather" title="Weather" />
           <CustomLink className="mx-3" href="/agriculture" title="Agriculture" />
           <CustomLink className="mx-3" href="/sensors" title="Sensors" />
-          <CustomLink className="ml-3" href="/orbit" title="Orbit" />
+          <CustomLink className="mx-3" href="/orbit" title="Orbit" />
+          <CustomLink className="ml-3" href="/state" title="State" />
         </nav>
         
         <nav className="flex items-center justify-center flex-wrap lg:mt-2">
@@ -438,6 +438,7 @@ const Navbar = () => {
             <CustomMobileLink toggle={handleClick} className="ml-4 lg:m-0 lg:my-2" href="/agriculture" title="Agriculture" />
             <CustomMobileLink toggle={handleClick} className="ml-4 lg:m-0 lg:my-2" href="/sensors" title="Sensors" />
             <CustomMobileLink toggle={handleClick} className="ml-4 lg:m-0 lg:my-2" href="/orbit" title="Orbit" />
+            <CustomMobileLink toggle={handleClick} className="ml-4 lg:m-0 lg:my-2" href="/state" title="State" />
           </nav>
           
           <nav className="flex items-center justify-center mt-2">
@@ -513,9 +514,7 @@ const Navbar = () => {
         : null
       }
 
-      <div className="absolute left-[50%] top-2 translate-x-[-50%] ">
-        <Logo />
-      </div>
+   
     </header>
   );
 };

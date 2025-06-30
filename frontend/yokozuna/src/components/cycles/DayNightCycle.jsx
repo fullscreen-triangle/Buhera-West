@@ -2,17 +2,6 @@ import React, { useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 
-interface DayNightCycleProps {
-  timeOfDay?: number; // 0-24 hour format
-  cycleSpeed?: number; // Speed of day/night cycle (0 = static time, 1 = real-time, higher = faster)
-  intensity?: number; // Brightness of sunlight
-  sunColor?: string; // Color of the sun
-  moonColor?: string; // Color of the moon
-  skyColorDay?: string; // Sky color during day
-  skyColorNight?: string; // Sky color during night
-  onChange?: (timeOfDay: number, isDay: boolean) => void; // Callback for time changes
-}
-
 /**
  * DayNightCycle component that controls lighting changes based on time of day
  * 
@@ -25,7 +14,7 @@ interface DayNightCycleProps {
  * />
  * ```
  */
-const DayNightCycle: React.FC<DayNightCycleProps> = ({
+const DayNightCycle = ({
   timeOfDay = 12,
   cycleSpeed = 0,
   intensity = 1,
@@ -35,12 +24,12 @@ const DayNightCycle: React.FC<DayNightCycleProps> = ({
   skyColorNight = '#000022',
   onChange,
 }) => {
-  const sunRef = useRef<THREE.DirectionalLight>(null);
-  const moonRef = useRef<THREE.DirectionalLight>(null);
+  const sunRef = useRef(null);
+  const moonRef = useRef(null);
   const currentTimeRef = useRef(timeOfDay);
   
   // Function to calculate sun position based on time
-  const calculateSunPosition = (time: number) => {
+  const calculateSunPosition = (time) => {
     // Convert 24-hour time to angle in radians (0h = -π/2, 12h = π/2, 24h = 3π/2)
     const angle = (time / 24) * Math.PI * 2 - Math.PI / 2;
     
@@ -58,7 +47,7 @@ const DayNightCycle: React.FC<DayNightCycleProps> = ({
   };
   
   // Function to calculate moon position (opposite to sun)
-  const calculateMoonPosition = (time: number) => {
+  const calculateMoonPosition = (time) => {
     const moonTime = (time + 12) % 24;
     const { x, y, z, intensity } = calculateSunPosition(moonTime);
     // Moon is dimmer than the sun

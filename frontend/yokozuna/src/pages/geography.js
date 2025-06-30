@@ -3,20 +3,14 @@ import Head from 'next/head'
 import Layout from '@/components/Layout'
 import TransitionEffect from '@/components/TransitionEffect'
 import { motion } from 'framer-motion'
+import { DEFAULT_COORDINATES } from '@/config/coordinates'
 
 const GeographyPage = () => {
   const [mapMode, setMapMode] = useState('terrain')
   const [coordinateSystem, setCoordinateSystem] = useState('wgs84')
 
-  // Simulated geographic data
-  const locationData = {
-    latitude: -18.2485437,
-    longitude: 31.8345621,
-    altitude: 1247.3,
-    accuracy: '±0.5mm',
-    datum: 'WGS84',
-    zone: '36K'
-  }
+  // Using centralized default Buhera West coordinates
+  const locationData = DEFAULT_COORDINATES;
 
   const terrainMetrics = {
     elevation: '1,247m AMSL',

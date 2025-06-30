@@ -7,7 +7,7 @@ Buhera-West is a high-performance computational platform designed for agricultur
 The platform addresses critical challenges in agricultural meteorology through implementation of advanced numerical weather prediction models, statistical downscaling techniques, and machine learning algorithms optimized for tropical and subtropical agricultural systems. The Rust backend provides computational efficiency for processing large-scale meteorological datasets, while the React frontend delivers responsive visualization of complex weather patterns and agricultural risk metrics.
 
 Core capabilities include multi-source weather data integration, ensemble weather forecasting, crop-specific risk modeling, and real-time alert systems. The system is designed to support agricultural decision-making across scales from individual farm operations to regional agricultural planning.
-
+(Default Location: -19.260799284567543, 31.499455719488008 )
 ## 1. Introduction
 
 ### 1.1 Problem Statement
