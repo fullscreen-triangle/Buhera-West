@@ -3,6 +3,8 @@ import { useFrame } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import * as THREE from 'three';
 import PropTypes from 'prop-types';
+import MaizeCrop from './MaizeCrop';
+import WheatCrop from './WheatCrop';
 
 /**
  * Agricultural Visualization Component
@@ -53,20 +55,49 @@ export const AgriculturalVisualization = ({ data, qualityLevel, enabled }) => {
     return geometry;
   }, [data?.fieldMesh, qualityLevel, enabled]);
   
-  // Individual crop positions
-  const cropPositions = useMemo(() => {
+  // Advanced crop field configuration
+  const cropFields = useMemo(() => {
     if (!data?.cropPositions || !enabled) return [];
     
-    const maxCrops = Math.floor(1000 * qualityLevel);
-    const crops = data.cropPositions.slice(0, maxCrops);
+    // Determine crop types and their positions
+    const fields = [];
+    const totalPositions = data.cropPositions.length;
     
-    return crops.map((position, index) => ({
-      position: [position.x, position.y + 2, position.z],
-      type: getCropType(index),
-      health: getCropHealth(index),
-      growth: getCropGrowth(index),
-      scale: 0.8 + Math.random() * 0.4
-    }));
+    // Maize fields (typically larger, positioned in central areas)
+    const maizePositions = data.cropPositions.filter((_, index) => index % 3 === 0);
+    if (maizePositions.length > 0) {
+      fields.push({
+        type: 'maize',
+        position: [
+          maizePositions.reduce((sum, pos) => sum + pos.x, 0) / maizePositions.length,
+          0,
+          maizePositions.reduce((sum, pos) => sum + pos.z, 0) / maizePositions.length
+        ],
+        width: Math.min(60, Math.max(30, Math.sqrt(maizePositions.length) * 8)),
+        instances: Math.floor(maizePositions.length * qualityLevel * 2),
+        growthStage: getCropGrowthAverage(maizePositions),
+        health: getCropHealthAverage(maizePositions)
+      });
+    }
+    
+    // Wheat fields (smaller, positioned in remaining areas)
+    const wheatPositions = data.cropPositions.filter((_, index) => index % 3 !== 0);
+    if (wheatPositions.length > 0) {
+      fields.push({
+        type: 'wheat',
+        position: [
+          wheatPositions.reduce((sum, pos) => sum + pos.x, 0) / wheatPositions.length,
+          0,
+          wheatPositions.reduce((sum, pos) => sum + pos.z, 0) / wheatPositions.length + 40
+        ],
+        width: Math.min(50, Math.max(25, Math.sqrt(wheatPositions.length) * 6)),
+        instances: Math.floor(wheatPositions.length * qualityLevel * 3),
+        growthStage: getCropGrowthAverage(wheatPositions),
+        health: getCropHealthAverage(wheatPositions)
+      });
+    }
+    
+    return fields;
   }, [data?.cropPositions, qualityLevel, enabled]);
   
   // Sensor network visualization
@@ -162,41 +193,68 @@ export const AgriculturalVisualization = ({ data, qualityLevel, enabled }) => {
         </mesh>
       )}
       
-      {/* Individual Crops */}
-      {cropPositions.length > 0 && (
+      {/* Advanced Crop Fields */}
+      {cropFields.length > 0 && (
         <group ref={cropsRef}>
-          {cropPositions.map((crop, index) => (
-            <group 
-              key={index} 
-              position={crop.position}
-              userData={{ baseY: crop.position[1] }}
-            >
-              {/* Crop stem */}
-              <mesh castShadow>
-                <cylinderGeometry args={[0.1, 0.2, crop.scale * 3, 6]} />
-                <meshLambertMaterial color={getCropColor(crop.type, crop.health)} />
-              </mesh>
-              
-              {/* Crop leaves/grain */}
-              <mesh position={[0, crop.scale * 2, 0]} castShadow>
-                <sphereGeometry args={[crop.scale * 0.8, 8, 8]} />
-                <meshLambertMaterial 
-                  color={getCropLeafColor(crop.type, crop.growth)}
-                  emissive={getCropHealthGlow(crop.health)}
-                  emissiveIntensity={0.1}
+          {cropFields.map((field, index) => (
+            <group key={index}>
+              {field.type === 'maize' && (
+                <MaizeCrop
+                  position={field.position}
+                  options={{
+                    stalkWidth: 0.08,
+                    stalkHeight: 2.5 * field.health, // Scale by health
+                    joints: qualityLevel > 0.7 ? 8 : 6,
+                    growthStage: field.growthStage
+                  }}
+                  width={field.width}
+                  instances={field.instances}
+                  fieldSpacing={0.75}
                 />
-              </mesh>
+              )}
               
-              {/* Growth indicator */}
-              {qualityLevel > 0.5 && (
-                <mesh position={[0, crop.scale * 3.5, 0]}>
-                  <ringGeometry args={[0.8, 1.2, 8]} />
+              {field.type === 'wheat' && (
+                <WheatCrop
+                  position={field.position}
+                  options={{
+                    stemWidth: 0.02,
+                    stemHeight: 1.2 * field.health, // Scale by health
+                    joints: qualityLevel > 0.7 ? 6 : 4,
+                    tillering: Math.floor(3 * field.health),
+                    growthStage: field.growthStage
+                  }}
+                  width={field.width}
+                  instances={field.instances}
+                  fieldSpacing={0.15}
+                />
+              )}
+              
+              {/* Field health indicator */}
+              {qualityLevel > 0.6 && (
+                <mesh position={[field.position[0], 8, field.position[2]]}>
+                  <ringGeometry args={[field.width * 0.6, field.width * 0.7, 16]} />
                   <meshBasicMaterial 
-                    color={getGrowthStageColor(crop.growth)}
+                    color={getHealthIndicatorColor(field.health)}
                     transparent
-                    opacity={0.6}
+                    opacity={0.3}
+                    side={THREE.DoubleSide}
                   />
                 </mesh>
+              )}
+              
+              {/* Field label */}
+              {qualityLevel > 0.8 && (
+                <Text
+                  position={[field.position[0], 12, field.position[2]]}
+                  fontSize={3}
+                  color={getHealthIndicatorColor(field.health)}
+                  anchorX="center"
+                  anchorY="middle"
+                >
+                  {field.type.toUpperCase()} FIELD
+                  {'\n'}Health: {Math.round(field.health * 100)}%
+                  {'\n'}Growth: {Math.round(field.growthStage * 100)}%
+                </Text>
               )}
             </group>
           ))}
@@ -465,6 +523,34 @@ function getYieldColor(yield_value) {
 
 function getConfidenceColor(confidence) {
   return confidence > 0.8 ? '#4CAF50' : confidence > 0.6 ? '#FFC107' : '#F44336';
+}
+
+// Helper functions for crop field calculations
+function getCropGrowthAverage(positions) {
+  if (!positions || positions.length === 0) return 0.7;
+  
+  const growthSum = positions.reduce((sum, pos, index) => {
+    return sum + getCropGrowth(index);
+  }, 0);
+  
+  return growthSum / positions.length;
+}
+
+function getCropHealthAverage(positions) {
+  if (!positions || positions.length === 0) return 0.8;
+  
+  const healthSum = positions.reduce((sum, pos, index) => {
+    return sum + getCropHealth(index);
+  }, 0);
+  
+  return healthSum / positions.length;
+}
+
+function getHealthIndicatorColor(health) {
+  // Health from 0 (poor) to 1 (excellent)
+  if (health < 0.4) return '#F44336'; // Poor - red
+  if (health < 0.7) return '#FFC107'; // Fair - yellow
+  return '#4CAF50'; // Good - green
 }
 
 AgriculturalVisualization.propTypes = {

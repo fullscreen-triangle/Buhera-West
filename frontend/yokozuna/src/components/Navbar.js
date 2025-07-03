@@ -1,8 +1,10 @@
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/router";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useThemeSwitch } from "./Hooks/useThemeSwitch";
+import Logo from "./Logo";
+import { TwitterIcon, LinkedInIcon, PinterestIcon, DribbbleIcon, GithubIcon, SunIcon, MoonIcon } from "./Icons";
 
 // Custom sensor system icons
 const SatelliteIcon = ({ className = "", isActive = false }) => (
@@ -241,31 +243,107 @@ const SoilSensorIcon = ({ className = "", isActive = false }) => (
   </svg>
 );
 
-const MoonIcon = ({ className = "" }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-  </svg>
-);
+const DropdownMenu = ({ title, items, isActive = false }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const timeoutRef = useRef(null);
+  const router = useRouter();
 
-const SunIcon = ({ className = "" }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-    <circle cx="12" cy="12" r="5" />
-    <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-  </svg>
-);
+  const handleMouseEnter = () => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    setIsOpen(true);
+  };
+
+  const handleMouseLeave = () => {
+    timeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 150);
+  };
+
+  const isItemActive = items.some(item => router.asPath === item.href);
+
+  return (
+    <div 
+      className="relative"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <button 
+        className={`${isItemActive ? 'text-blue-500 dark:text-blue-400' : ''} rounded relative group lg:text-light lg:dark:text-dark text-sm flex items-center px-3 py-2 transition-colors duration-200 hover:text-blue-500 dark:hover:text-blue-400`}
+      >
+        {title}
+        <svg 
+          className={`ml-1 w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+        <span
+          className={`
+            inline-block h-[1px] bg-dark absolute left-0 -bottom-0.5 
+            group-hover:w-full transition-[width] ease duration-300 dark:bg-light
+            ${isItemActive ? "w-full" : " w-0"} lg:bg-light lg:dark:bg-dark
+          `}
+        >
+          &nbsp;
+        </span>
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50"
+          >
+            <div className="py-2">
+              {items.map((item, index) => (
+                <Link
+                  key={index}
+                  href={item.href}
+                  className={`block px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 ${
+                    router.asPath === item.href 
+                      ? 'text-blue-500 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20' 
+                      : 'text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    {item.icon && <span className="mr-2">{item.icon}</span>}
+                    {item.title}
+                  </div>
+                  {item.description && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {item.description}
+                    </div>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 const CustomLink = ({ href, title, className = "" }) => {
   const router = useRouter();
 
   return (
-    <Link href={href} className={`${className} rounded relative group lg:text-light lg:dark:text-dark text-sm`}>
+    <Link href={href} className={`${className} relative group`}>
       {title}
+
       <span
         className={`
-              inline-block h-[1px] bg-dark absolute left-0 -bottom-0.5 
-              group-hover:w-full transition-[width] ease duration-300 dark:bg-light
-              ${router.asPath === href ? "w-full" : " w-0"} lg:bg-light lg:dark:bg-dark
-              `}
+          h-[1px] inline-block bg-dark absolute left-0 -bottom-0.5
+          group-hover:w-full transition-[width] ease duration-300
+          ${router.asPath === href ? 'w-full' : 'w-0'}
+          dark:bg-light`}
       >
         &nbsp;
       </span>
@@ -273,23 +351,104 @@ const CustomLink = ({ href, title, className = "" }) => {
   );
 };
 
+const MobileDropdownMenu = ({ title, items, toggle }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const router = useRouter();
+
+  const handleToggle = () => {
+    setIsOpen(!isOpen);
+  };
+
+  const handleItemClick = (href) => {
+    toggle();
+    router.push(href);
+  };
+
+  const isItemActive = items.some(item => router.asPath === item.href);
+
+  return (
+    <div className="w-full">
+      <button 
+        onClick={handleToggle}
+        className={`${isItemActive ? 'text-blue-400' : 'text-light dark:text-dark'} w-full text-left rounded relative group text-sm flex items-center justify-between px-4 py-3 transition-colors duration-200`}
+      >
+        <span>{title}</span>
+        <svg 
+          className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+        <span
+          className={`
+            inline-block h-[1px] bg-light dark:bg-dark absolute left-0 -bottom-0.5 
+            group-hover:w-full transition-[width] ease duration-300
+            ${isItemActive ? "w-full" : " w-0"}
+          `}
+        >
+          &nbsp;
+        </span>
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="pl-4 pb-2">
+              {items.map((item, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleItemClick(item.href)}
+                  className={`block w-full text-left px-4 py-2 text-sm rounded transition-colors duration-150 ${
+                    router.asPath === item.href 
+                      ? 'text-blue-400 bg-blue-900/20' 
+                      : 'text-light dark:text-dark hover:bg-light/10 dark:hover:bg-dark/10'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    {item.icon && <span className="mr-2">{item.icon}</span>}
+                    {item.title}
+                  </div>
+                  {item.description && (
+                    <div className="text-xs text-light/60 dark:text-dark/60 mt-1">
+                      {item.description}
+                    </div>
+                  )}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
 const CustomMobileLink = ({ href, title, className = "", toggle }) => {
   const router = useRouter();
 
-  const handleClick = () =>{
+  const handleClick = () => {
     toggle();
-    router.push(href) 
+    router.push(href);
   }
 
   return (
-    <button className={`${className} rounded relative group lg:text-light lg:dark:text-dark text-sm`} onClick={handleClick}>
+    <button href={href} className={`${className} relative group text-light dark:text-dark my-2`} onClick={handleClick}>
       {title}
+
       <span
         className={`
-              inline-block h-[1px] bg-dark absolute left-0 -bottom-0.5 
-              group-hover:w-full transition-[width] ease duration-300 dark:bg-light
-              ${router.asPath === href ? "w-full" : " w-0"} lg:bg-light lg:dark:bg-dark
-              `}
+          h-[1px] inline-block bg-light absolute left-0 -bottom-0.5
+          group-hover:w-full transition-[width] ease duration-300
+          ${router.asPath === href ? 'w-full' : 'w-0'}
+          dark:bg-dark`}
       >
         &nbsp;
       </span>
@@ -306,217 +465,320 @@ const Navbar = () => {
     setIsOpen(!isOpen);
   };
 
+  // Navigation menu structure
+  const navigationMenus = {
+    environmental: {
+      title: "Environmental",
+      items: [
+        {
+          href: "/weather/weather",
+          title: "Weather",
+          icon: "🌦️",
+          description: "Atmospheric analysis & forecasting"
+        },
+        {
+          href: "/weather/atmosphere",
+          title: "Atmosphere",
+          icon: "🌪️",
+          description: "Immersive atmospheric visualization"
+        },
+        {
+          href: "/agriculture/agriculture", 
+          title: "Agriculture",
+          icon: "🌾",
+          description: "Crop monitoring & optimization"
+        },
+        {
+          href: "/agriculture/crops",
+          title: "Crops",
+          icon: "🌽",
+          description: "Crop field analysis & monitoring"
+        },
+        {
+          href: "/water/hydrology",
+          title: "Hydrology", 
+          icon: "💧",
+          description: "Groundwater detection & analysis"
+        },
+        {
+          href: "/water/subterrainian",
+          title: "Subterranean",
+          icon: "🏔️",
+          description: "3D water table visualization"
+        }
+      ]
+    },
+    geological: {
+      title: "Geological",
+      items: [
+        {
+          href: "/geology/geography",
+          title: "Geography",
+          icon: "🗺️", 
+          description: "Terrain mapping & analysis"
+        },
+        {
+          href: "/geology/geology",
+          title: "Geology",
+          icon: "🪨",
+          description: "Mineral detection & subsurface"
+        }
+      ]
+    },
+    technology: {
+      title: "Technology",
+      items: [
+        {
+          href: "/sensors/distributed",
+          title: "Distributed Sensors",
+          icon: "📡",
+          description: "Global sensor network infrastructure"
+        },
+        {
+          href: "/sensors/terrestrial",
+          title: "Terrestrial Sensors",
+          icon: "🗼",
+          description: "Ground-based sensor systems"
+        },
+        {
+          href: "/sensors/extraterrestrial-mechanics",
+          title: "Extraterrestrial",
+          icon: "🛰️",
+          description: "Satellite orbital mechanics"
+        },
+        {
+          href: "/sensors/reconstruction",
+          title: "Reconstruction",
+          icon: "🔄",
+          description: "Signal reconstruction & analysis"
+        },
+        {
+          href: "/location",
+          title: "Location",
+          icon: "📍",
+          description: "Geographic positioning & mapping"
+        }
+      ]
+    },
+    analysis: {
+      title: "Analysis", 
+      items: [
+        {
+          href: "/weather/state",
+          title: "State Analysis",
+          icon: "📊",
+          description: "System state & diagnostics"
+        }
+      ]
+    },
+    cosmology: {
+      title: "Cosmology",
+      items: [
+        {
+          href: "/cosmology/properties",
+          title: "Properties",
+          icon: "⚛️",
+          description: "Cosmological properties & analysis"
+        },
+        {
+          href: "/cosmology/solar-system",
+          title: "Solar System",
+          icon: "☀️",
+          description: "Solar system visualization"
+        }
+      ]
+    },
+    oceanography: {
+      title: "Oceanography",
+      items: [
+        {
+          href: "/oceanoegraphy/agulhas",
+          title: "Agulhas Current",
+          icon: "🌊",
+          description: "Indian Ocean current analysis"
+        },
+        {
+          href: "/oceanoegraphy/benguela",
+          title: "Benguela Current",
+          icon: "🐟",
+          description: "Atlantic Ocean upwelling system"
+        }
+      ]
+    },
+    tools: {
+      title: "Tools",
+      items: [
+        {
+          href: "/test-timeline",
+          title: "Timeline",
+          icon: "⏰",
+          description: "Global timeline visualization"
+        },
+        {
+          href: "/audio-demo",
+          title: "Audio Demo",
+          icon: "🔊",
+          description: "Ambient audio demonstration"
+        }
+      ]
+    },
+    resources: {
+      title: "Resources",
+      items: [
+        {
+          href: "/articles",
+          title: "Articles",
+          icon: "📰",
+          description: "Technical articles & documentation"
+        },
+        {
+          href: "/projects",
+          title: "Projects",
+          icon: "🚀",
+          description: "Featured projects & case studies"
+        },
+        {
+          href: "/about",
+          title: "About",
+          icon: "ℹ️",
+          description: "About the platform & team"
+        }
+      ]
+    }
+  };
+
   // Determine which sensors should be active based on current page
   const getSensorStates = () => {
     const path = router.asPath;
     return {
-      satellite: path.includes('weather') || path.includes('geography') || path.includes('location') || path.includes('orbit') || path.includes('sensors'),
-      cellTower: path.includes('weather') || path.includes('hydrology') || path.includes('sensors'),
+      satellite: path.includes('weather') || path.includes('geography') || path.includes('location') || path.includes('extraterrestrial-mechanics') || path.includes('sensors') || path.includes('cosmology') || path.includes('oceanoegraphy'),
+      cellTower: path.includes('weather') || path.includes('hydrology') || path.includes('terrestrial') || path.includes('sensors') || path.includes('location'),
       weatherStation: path.includes('weather') || path.includes('agriculture') || path.includes('sensors'),
-      gps: path.includes('geography') || path.includes('geology') || path.includes('location') || path.includes('sensors') || path.includes('orbit'),
-      atmospheric: path.includes('weather') || path.includes('agriculture') || path.includes('sensors'),
-      soil: path.includes('agriculture') || path.includes('geology') || path.includes('hydrology') || path.includes('sensors')
+      gps: path.includes('geography') || path.includes('geology') || path.includes('location') || path.includes('sensors') || path.includes('distributed') || path.includes('reconstruction'),
+      atmospheric: path.includes('weather') || path.includes('agriculture') || path.includes('sensors') || path.includes('atmosphere'),
+      soil: path.includes('agriculture') || path.includes('geology') || path.includes('hydrology') || path.includes('sensors') || path.includes('subterrainian')
     };
   };
 
   const sensorStates = getSensorStates();
 
   return (
-    <header className="w-full flex items-center justify-between px-32 py-8 font-medium z-10 dark:text-light
-    lg:px-16 relative z-1 md:px-12 sm:px-8
-    ">
-      
-      <button
-        type="button"
-        className=" flex-col items-center justify-center hidden lg:flex"
-        aria-controls="mobile-menu"
-        aria-expanded={isOpen}
-        onClick={handleClick}
-      >
-        <span className="sr-only">Open main menu</span>
-        <span className={`bg-dark dark:bg-light block h-0.5 w-6 rounded-sm transition-all duration-300 ease-out ${isOpen ? 'rotate-45 translate-y-1' : '-translate-y-0.5'}`}></span>
-        <span className={`bg-dark dark:bg-light block h-0.5 w-6 rounded-sm transition-all duration-300 ease-out ${isOpen ? 'opacity-0' : 'opacity-100'} my-0.5`}></span>
-        <span className={`bg-dark dark:bg-light block h-0.5 w-6 rounded-sm transition-all duration-300 ease-out ${isOpen ? '-rotate-45 -translate-y-1' : 'translate-y-0.5'}`}></span>
+    <header
+      className='w-full px-32 py-8 font-medium flex items-center justify-between
+      dark:text-light relative z-10 lg:px-16 md:px-12 sm:px-8'
+    >
+
+      <button className='flex-col justify-center items-center hidden lg:flex' onClick={handleClick}>
+        <span className={`bg-dark dark:bg-light block transition-all duration-300 ease-out h-0.5 w-6 rounded-sm ${isOpen ? 'rotate-45 translate-y-1' : '-translate-y-0.5'}`}></span>
+        <span className={`bg-dark dark:bg-light block transition-all duration-300 ease-out h-0.5 w-6 rounded-sm my-0.5 ${isOpen ? 'opacity-0' : 'opacity-100'}`}></span>
+        <span className={`bg-dark dark:bg-light block transition-all duration-300 ease-out h-0.5 w-6 rounded-sm ${isOpen ? '-rotate-45 -translate-y-1' : 'translate-y-0.5'}`}></span>
       </button>
 
-      <div className="w-full flex justify-between items-center lg:hidden">
-        <nav className="flex items-center justify-center">
-          <CustomLink className="mr-3" href="/hydrology" title="Hydrology" />
-          <CustomLink className="mx-3" href="/geography" title="Geography" />
-          <CustomLink className="mx-3" href="/geology" title="Geology" />
-          <CustomLink className="mx-3" href="/weather" title="Weather" />
-          <CustomLink className="mx-3" href="/agriculture" title="Agriculture" />
-          <CustomLink className="mx-3" href="/sensors" title="Sensors" />
-          <CustomLink className="mx-3" href="/orbit" title="Orbit" />
-          <CustomLink className="ml-3" href="/state" title="State" />
+      <div className='w-full flex justify-between items-center lg:hidden'>
+        <nav className='flex items-center'>
+          <CustomLink href="/" title="Home" className='mr-4' />
+          <DropdownMenu title="Environmental" items={navigationMenus.environmental.items} />
+          <DropdownMenu title="Geological" items={navigationMenus.geological.items} />
+          <DropdownMenu title="Technology" items={navigationMenus.technology.items} />
+          <DropdownMenu title="Analysis" items={navigationMenus.analysis.items} />
+          <DropdownMenu title="Cosmology" items={navigationMenus.cosmology.items} />
+          <DropdownMenu title="Oceanography" items={navigationMenus.oceanography.items} />
+          <DropdownMenu title="Tools" items={navigationMenus.tools.items} />
+          <DropdownMenu title="Resources" items={navigationMenus.resources.items} />
         </nav>
-        
-        <nav className="flex items-center justify-center flex-wrap lg:mt-2">
-          <motion.div
-            className="w-6 mr-3"
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.9 }}
-            title="Satellite Network"
-          >
-            <SatelliteIcon className="w-full h-full" isActive={sensorStates.satellite} />
-          </motion.div>
-          
-          <motion.div
-            className="w-6 mx-3"
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.9 }}
-            title="Cellular Communication"
-          >
-            <CellTowerIcon className="w-full h-full" isActive={sensorStates.cellTower} />
-          </motion.div>
-          
-          <motion.div
-            className="w-6 mx-3"
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.9 }}
-            title="Weather Stations"
-          >
-            <WeatherStationIcon className="w-full h-full" isActive={sensorStates.weatherStation} />
-          </motion.div>
-          
-          <motion.div
-            className="w-6 mx-3"
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.9 }}
-            title="GPS Network"
-          >
-            <GPSIcon className="w-full h-full" isActive={sensorStates.gps} />
-          </motion.div>
-          
-          <motion.div
-            className="w-6 mx-3"
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.9 }}
-            title="Atmospheric Sensors"
-          >
-            <AtmosphericSensorIcon className="w-full h-full" isActive={sensorStates.atmospheric} />
-          </motion.div>
-          
-          <motion.div
-            className="w-6 mx-3"
-            whileHover={{ y: -2 }}
-            whileTap={{ scale: 0.9 }}
-            title="Soil Monitoring"
-          >
-            <SoilSensorIcon className="w-full h-full" isActive={sensorStates.soil} />
-          </motion.div>
 
-          <button
-            onClick={() => setMode(mode === "light" ? "dark" : "light")}
-            className={`w-6 h-6 ease ml-3 flex items-center justify-center rounded-full p-1  
-              ${mode === "light" ? "bg-dark  text-light" : "bg-light  text-dark"}
-              `}
-            aria-label="theme-switcher"
-          >
-            {mode === "light" ? (
-              <SunIcon className={"fill-dark"} />
-            ) : (
-              <MoonIcon className={"fill-dark"} />
-            )}
-          </button>
-        </nav>
+        {/* Sensor Status Indicators */}
+        <div className="flex items-center space-x-2 text-xs">
+          <SatelliteIcon className="w-4 h-4" isActive={sensorStates.satellite} />
+          <CellTowerIcon className="w-4 h-4" isActive={sensorStates.cellTower} />
+          <WeatherStationIcon className="w-4 h-4" isActive={sensorStates.weatherStation} />
+          <GPSIcon className="w-4 h-4" isActive={sensorStates.gps} />
+          <AtmosphericSensorIcon className="w-4 h-4" isActive={sensorStates.atmospheric} />
+          <SoilSensorIcon className="w-4 h-4" isActive={sensorStates.soil} />
+        </div>
       </div>
-      
-      {isOpen ? 
-        <motion.div className="min-w-[70vw] sm:min-w-[90vw] flex justify-between items-center flex-col fixed top-1/2 left-1/2 -translate-x-1/2
-        -translate-y-1/2
-        py-32 bg-dark/90 dark:bg-light/75 rounded-lg z-50 backdrop-blur-md
-        "
-        initial={{scale:0,x:"-50%",y:"-50%", opacity:0}}
-        animate={{scale:1,opacity:1}}
-        >
-          <nav className="flex items-center justify-center flex-col">
-            <CustomMobileLink toggle={handleClick} className="mr-4 lg:m-0 lg:my-2" href="/hydrology" title="Hydrology" />
-            <CustomMobileLink toggle={handleClick} className="mx-4 lg:m-0 lg:my-2" href="/geography" title="Geography" />
-            <CustomMobileLink toggle={handleClick} className="mx-4 lg:m-0 lg:my-2" href="/geology" title="Geology" />
-            <CustomMobileLink toggle={handleClick} className="ml-4 lg:m-0 lg:my-2" href="/weather" title="Weather" />
-            <CustomMobileLink toggle={handleClick} className="ml-4 lg:m-0 lg:my-2" href="/agriculture" title="Agriculture" />
-            <CustomMobileLink toggle={handleClick} className="ml-4 lg:m-0 lg:my-2" href="/sensors" title="Sensors" />
-            <CustomMobileLink toggle={handleClick} className="ml-4 lg:m-0 lg:my-2" href="/orbit" title="Orbit" />
-            <CustomMobileLink toggle={handleClick} className="ml-4 lg:m-0 lg:my-2" href="/state" title="State" />
-          </nav>
-          
-          <nav className="flex items-center justify-center mt-2">
-            <motion.div
-              className="w-6 m-1 mr-3 sm:mx-1"
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.9 }}
-              title="Satellite Network"
-            >
-              <SatelliteIcon className="w-full h-full" isActive={sensorStates.satellite} />
-            </motion.div>
-            
-            <motion.div
-              className="w-6 m-1 mx-3 sm:mx-1"
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.9 }}
-              title="Cellular Communication"
-            >
-              <CellTowerIcon className="w-full h-full" isActive={sensorStates.cellTower} />
-            </motion.div>
-            
-            <motion.div
-              className="w-6 m-1 mx-3 sm:mx-1"
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.9 }}
-              title="Weather Stations"
-            >
-              <WeatherStationIcon className="w-full h-full" isActive={sensorStates.weatherStation} />
-            </motion.div>
-            
-            <motion.div
-              className="w-6 m-1 mx-3 sm:mx-1"
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.9 }}
-              title="GPS Network"
-            >
-              <GPSIcon className="w-full h-full" isActive={sensorStates.gps} />
-            </motion.div>
-            
-            <motion.div
-              className="w-6 m-1 mx-3 sm:mx-1"
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.9 }}
-              title="Atmospheric Sensors"
-            >
-              <AtmosphericSensorIcon className="w-full h-full" isActive={sensorStates.atmospheric} />
-            </motion.div>
-            
-            <motion.div
-              className="w-6 m-1 mx-3 sm:mx-1"
-              whileHover={{ y: -2 }}
-              whileTap={{ scale: 0.9 }}
-              title="Soil Monitoring"
-            >
-              <SoilSensorIcon className="w-full h-full" isActive={sensorStates.soil} />
-            </motion.div>
 
-            <button
-              onClick={() => setMode(mode === "light" ? "dark" : "light")}
-              className={`w-6 h-6 ease m-1 ml-3 sm:mx-1 flex items-center justify-center rounded-full p-1  
-                ${mode === "light" ? "bg-dark  text-light" : "bg-light  text-dark"}
-                `}
-              aria-label="theme-switcher"
-            >
-              {mode === "light" ? (
-                <SunIcon className={"fill-dark"} />
-              ) : (
-                <MoonIcon className={"fill-dark"} />
-              )}
-            </button>
-          </nav>
-        </motion.div>
-        : null
+      {
+        isOpen ?
+          <motion.div
+            initial={{scale:0, opacity:0, x: "-50%", y: "-50%"}}
+            animate={{scale:1, opacity:1}}
+            className='min-w-[70vw] flex flex-col justify-between z-30 items-center fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
+      bg-dark/90 dark:bg-light/75 rounded-lg backdrop-blur-md py-32'
+          >
+            <nav className='flex items-center flex-col justify-center'>
+              <CustomMobileLink href="/" title="Home" className='' toggle={handleClick} />
+              <MobileDropdownMenu title="Environmental" items={navigationMenus.environmental.items} toggle={handleClick} />
+              <MobileDropdownMenu title="Geological" items={navigationMenus.geological.items} toggle={handleClick} />
+              <MobileDropdownMenu title="Technology" items={navigationMenus.technology.items} toggle={handleClick} />
+              <MobileDropdownMenu title="Analysis" items={navigationMenus.analysis.items} toggle={handleClick} />
+              <MobileDropdownMenu title="Cosmology" items={navigationMenus.cosmology.items} toggle={handleClick} />
+              <MobileDropdownMenu title="Oceanography" items={navigationMenus.oceanography.items} toggle={handleClick} />
+              <MobileDropdownMenu title="Tools" items={navigationMenus.tools.items} toggle={handleClick} />
+              <MobileDropdownMenu title="Resources" items={navigationMenus.resources.items} toggle={handleClick} />
+            </nav>
+
+            <nav className='flex items-center justify-center flex-wrap mt-2'>
+              <motion.a href="https://twitter.com" target={"_blank"}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.9 }}
+                className="w-6 mr-3 sm:mx-1"
+              >
+                <TwitterIcon />
+              </motion.a>
+              <motion.a href="https://github.com" target={"_blank"}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.9 }}
+                className="w-6 mx-3 bg-light rounded-full dark:bg-dark sm:mx-1"
+              >
+                <GithubIcon />
+              </motion.a>
+              <motion.a href="https://linkedin.com" target={"_blank"}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.9 }}
+                className="w-6 mx-3 sm:mx-1"
+              >
+                <LinkedInIcon />
+              </motion.a>
+              <motion.a href="https://pinterest.com" target={"_blank"}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.9 }}
+                className="w-6 mx-3 bg-light rounded-full sm:mx-1"
+              >
+                <PinterestIcon />
+              </motion.a>
+              <motion.a href="https://dribbble.com" target={"_blank"}
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.9 }}
+                className="w-6 ml-3 sm:mx-1"
+              >
+                <DribbbleIcon />
+              </motion.a>
+
+              <button
+                onClick={() => setMode(mode === "light" ? "dark" : "light")}
+                className={`ml-3 flex items-center justify-center rounded-full p-1
+        ${mode === "light" ? "bg-dark text-light" : "bg-light text-dark"}
+        `}
+              >
+                {
+                  mode === "dark" ?
+                    <SunIcon className={"fill-dark"} />
+                    : <MoonIcon className={"fill-dark"} />
+                }
+              </button>
+
+            </nav>
+          </motion.div>
+
+          : null
       }
 
-   
+      <div className='absolute left-[50%] top-2 translate-x-[-50%]'>
+        <Logo />
+      </div>
     </header>
-  );
-};
+  )
+}
 
-export default Navbar;
+export default Navbar

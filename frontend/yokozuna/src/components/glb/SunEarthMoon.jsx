@@ -1,7 +1,8 @@
 'use client'
 import { Canvas} from '@react-three/fiber'
 import { useRef, useEffect, Suspense} from 'react'
-import { useGLTF, BakeShadows, Environment, useAnimations } from '@react-three/drei'
+import { useGLTF, Environment, useAnimations, Clouds, Cloud } from '@react-three/drei'
+import * as THREE from 'three'
 
 function Model(props) {
   const group = useRef()
@@ -12,10 +13,6 @@ function Model(props) {
     useEffect(() => {
       actions['Take 001'].play()
     })
-  
-
-
- 
 
   return (
     <group ref={group} {...props} dispose={null}>
@@ -72,9 +69,8 @@ const SunEarthMoon = () => {
         <Canvas 
             shadows 
             dpr={[1, 1.5]}
-            camera={{ position: [-1.5, 1, 5.5], fov: 45, near: 1, far: 20 }}   
-            className='w-full h-full animate-[fade-in_1s_ease_0.3s_forwards]'
-            style={{ width: '100%', height: '100%' }}
+            camera={{ position: [0, 0, 5], fov: 45, near: 1, far: 20 }}  
+            gl={{ antialias: true }}
         >
             <hemisphereLight intensity={0.5} />
             <ambientLight intensity={0.2} />
@@ -86,15 +82,16 @@ const SunEarthMoon = () => {
                 shadow-mapSize-height={1024}
             />
             <pointLight position={[0, 10, 0]} intensity={0.5} />
-            <fog attach="fog" args={['#272730', 16, 30]} />
+         
             <Suspense fallback={null}>
+                <fog attach="fog" args={['#272730', 16, 30]} />
                 <Environment files="/environments/potsdamer_platz_1k.hdr" />
-
-                <Model position={[0, -2, 0]} scale={0.8} />
+                <Model position={[0, -2, 0]} scale={4} />
+             
 
             </Suspense>
 
-            <BakeShadows />
+          
         </Canvas>
     )
 }

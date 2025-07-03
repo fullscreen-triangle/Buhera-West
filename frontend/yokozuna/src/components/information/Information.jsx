@@ -19,7 +19,7 @@ const Information = ({
   const [isLoading, setIsLoading] = useState(false);
   const dashboardRef = useRef(null);
 
-  // Load crossfilter data from Rust backend
+  // Load crossfilter data from multiple real APIs
   useEffect(() => {
     if (isOpen && !crossfilterData) {
       loadCrossfilterData();
@@ -29,7 +29,23 @@ const Information = ({
   const loadCrossfilterData = async () => {
     setIsLoading(true);
     try {
-      // Connect to Rust crossfilter backend
+      // First try to get real data from enhanced weather service
+      const enhancedWeatherService = (await import('../../services/enhancedWeatherService')).default;
+      
+      const realWeatherData = await enhancedWeatherService.generateRealCrossfilterData(
+        locationData.lat, 
+        locationData.lng, 
+        0.1, // 0.1 degree radius
+        100  // 100 data points
+      );
+      
+      if (realWeatherData && realWeatherData.length > 0) {
+        setCrossfilterData(formatRealDataForCrossfilter(realWeatherData));
+        console.log('Using real weather data from multiple APIs');
+        return;
+      }
+      
+      // Try Rust backend as fallback
       const response = await fetch('/api/crossfilter/data', {
         method: 'POST',
         headers: {
@@ -45,39 +61,163 @@ const Information = ({
       if (response.ok) {
         const data = await response.json();
         setCrossfilterData(data);
+        console.log('Using Rust backend crossfilter data');
       } else {
-        // Fallback to mock data for development
-        setCrossfilterData(generateMockCrossfilterData());
+        throw new Error('Rust backend not available');
       }
     } catch (error) {
-      console.warn('Crossfilter backend not available, using mock data:', error);
-      setCrossfilterData(generateMockCrossfilterData());
+      console.warn('Real APIs not available, generating realistic fallback data:', error);
+      setCrossfilterData(generateRealisticData());
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Generate mock crossfilter data structure
-  const generateMockCrossfilterData = () => {
-    const dataPoints = 1000;
+  // Format real weather data for crossfilter
+  const formatRealDataForCrossfilter = (realData) => {
+    return {
+      data: realData,
+      dimensions: {
+        time: realData.map(d => d.timestamp),
+        temperature: realData.map(d => d.temperature),
+        humidity: realData.map(d => d.humidity),
+        pressure: realData.map(d => d.pressure),
+        windSpeed: realData.map(d => d.windSpeed),
+        precipitation: realData.map(d => d.precipitation || 0),
+        soilMoisture: realData.map(d => d.soilMoisture),
+        elevation: realData.map(d => d.elevation),
+        vegetation: realData.map(d => d.vegetation),
+        uvIndex: realData.map(d => d.uvIndex),
+        airQuality: realData.map(d => d.airQuality)
+      },
+      groups: {
+        temperatureByTime: realData.reduce((acc, d) => {
+          const hour = new Date(d.timestamp).getHours();
+          acc[hour] = (acc[hour] || []).concat(d.temperature);
+          return acc;
+        }, {}),
+        humidityRanges: realData.reduce((acc, d) => {
+          const range = Math.floor(d.humidity / 10) * 10;
+          acc[range] = (acc[range] || 0) + 1;
+          return acc;
+        }, {}),
+        pressureDistribution: realData.reduce((acc, d) => {
+          const bucket = Math.floor(d.pressure / 5) * 5;
+          acc[bucket] = (acc[bucket] || 0) + 1;
+          return acc;
+        }, {}),
+        weatherTypes: realData.reduce((acc, d) => {
+          acc[d.weather] = (acc[d.weather] || 0) + 1;
+          return acc;
+        }, {}),
+        uvIndexDistribution: realData.reduce((acc, d) => {
+          const uvLevel = Math.floor(d.uvIndex || 0);
+          acc[uvLevel] = (acc[uvLevel] || 0) + 1;
+          return acc;
+        }, {}),
+        airQualityLevels: realData.reduce((acc, d) => {
+          const aqLevel = d.airQuality || 1;
+          acc[aqLevel] = (acc[aqLevel] || 0) + 1;
+          return acc;
+        }, {})
+      },
+      metadata: {
+        source: 'Real Weather APIs',
+        lastUpdated: Date.now(),
+        totalPoints: realData.length,
+        coverage: `${((realData.length / 100) * 100).toFixed(1)}% real data`
+      }
+    };
+  };
+
+  // Generate realistic data based on Southern Africa climate patterns
+  const generateRealisticData = () => {
+    const dataPoints = 500; // Reduced for better performance
     const data = [];
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth() + 1;
+    
+    // Southern Africa climate characteristics
+    const isWetSeason = currentMonth >= 11 || currentMonth <= 3; // Nov-Mar
+    const isDrySeason = currentMonth >= 5 && currentMonth <= 9; // May-Sep
+    const seasonalFactor = Math.sin((currentMonth - 1) * Math.PI / 6);
     
     for (let i = 0; i < dataPoints; i++) {
-      const baseTime = Date.now() - (i * 60000); // 1 minute intervals
+      const baseTime = Date.now() - (i * 3600000); // 1 hour intervals
+      const date = new Date(baseTime);
+      const hourOfDay = date.getHours();
+      const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
+      
+      // Realistic temperature patterns for subtropical highland (Buhera West)
+      const dailyTempCycle = Math.sin((hourOfDay - 6) * Math.PI / 12) * 8; // Peak at 2 PM
+      const seasonalTempVariation = seasonalFactor * 6; // Seasonal variation
+      const baseTemp = 19; // Average temperature for the region
+      const temperature = baseTemp + seasonalTempVariation + dailyTempCycle + (Math.random() - 0.5) * 3;
+      
+      // Humidity patterns (higher in wet season, diurnal cycle)
+      const baseHumidity = isWetSeason ? 75 : 55;
+      const humidityDiurnalCycle = Math.cos((hourOfDay - 6) * Math.PI / 12) * 15;
+      const humidity = Math.max(20, Math.min(95, baseHumidity + humidityDiurnalCycle + (Math.random() - 0.5) * 10));
+      
+      // Atmospheric pressure (varies with elevation and weather systems)
+      const basePressure = 1013 - (locationData.altitude * 0.12); // Pressure decreases with altitude
+      const pressureVariation = Math.sin(i * 0.02) * 8; // Weather system variation
+      const pressure = basePressure + pressureVariation + (Math.random() - 0.5) * 3;
+      
+      // Wind patterns (SE trade winds common in the region)
+      const baseWindSpeed = 12; // Average wind speed
+      const diurnalWindCycle = Math.sin((hourOfDay - 12) * Math.PI / 12) * 5;
+      const windSpeed = Math.max(0, baseWindSpeed + diurnalWindCycle + (Math.random() - 0.5) * 6);
+      const windDirection = 135 + (Math.random() - 0.5) * 60; // SE winds with variation
+      
+      // Precipitation (much higher in wet season)
+      const precipitationProbability = isWetSeason ? 0.3 : (isDrySeason ? 0.05 : 0.15);
+      const precipitation = Math.random() < precipitationProbability ? Math.random() * (isWetSeason ? 25 : 5) : 0;
+      
+      // Soil moisture (affected by season and recent precipitation)
+      const baseSoilMoisture = isWetSeason ? 45 : 25;
+      const soilMoisture = Math.max(10, Math.min(80, baseSoilMoisture + (Math.random() - 0.5) * 15));
+      
+      // UV Index (varies with time of day and season)
+      const maxUV = seasonalFactor > 0 ? 11 : 8; // Higher in summer
+      const uvCycle = Math.max(0, Math.sin((hourOfDay - 6) * Math.PI / 12));
+      const uvIndex = maxUV * uvCycle * (0.8 + Math.random() * 0.4);
+      
+      // Air quality (generally good in rural Zimbabwe)
+      const airQuality = Math.floor(Math.random() * 3) + 1; // 1-3 (good to moderate)
+      
+      // Vegetation index (varies with season and rainfall)
+      const baseVegetation = isWetSeason ? 75 : 45;
+      const vegetation = Math.max(20, Math.min(95, baseVegetation + (Math.random() - 0.5) * 20));
+      
+      // Cloud cover
+      const baseCloudCover = isWetSeason ? 60 : 30;
+      const cloudCover = Math.max(0, Math.min(100, baseCloudCover + (Math.random() - 0.5) * 30));
+      
       data.push({
+        id: i,
         timestamp: baseTime,
-        temperature: 15 + Math.sin(i * 0.1) * 10 + Math.random() * 5,
-        humidity: 40 + Math.cos(i * 0.08) * 20 + Math.random() * 10,
-        pressure: 1000 + Math.sin(i * 0.05) * 15 + Math.random() * 8,
-        windSpeed: Math.abs(Math.sin(i * 0.15) * 20 + Math.random() * 5),
-        precipitation: Math.max(0, Math.sin(i * 0.2) * 50 + Math.random() * 20),
-        soilMoisture: 30 + Math.cos(i * 0.12) * 15 + Math.random() * 8,
-        elevation: locationData.altitude + Math.random() * 100 - 50,
-        vegetation: Math.random() * 100,
+        temperature: Math.round(temperature * 10) / 10,
+        humidity: Math.round(humidity),
+        pressure: Math.round(pressure * 10) / 10,
+        windSpeed: Math.round(windSpeed * 10) / 10,
+        windDirection: Math.round(windDirection),
+        precipitation: Math.round(precipitation * 10) / 10,
+        soilMoisture: Math.round(soilMoisture),
+        elevation: locationData.altitude + (Math.random() - 0.5) * 50,
+        vegetation: Math.round(vegetation),
+        uvIndex: Math.round(uvIndex * 10) / 10,
+        airQuality: airQuality,
+        cloudCover: Math.round(cloudCover),
+        visibility: Math.round(15000 + (Math.random() - 0.5) * 5000), // Visibility in meters
+        weather: precipitation > 0 ? 'Rain' : (cloudCover > 70 ? 'Cloudy' : (cloudCover > 30 ? 'Partly Cloudy' : 'Clear')),
         coordinates: {
-          lat: locationData.lat + (Math.random() - 0.5) * 0.1,
-          lng: locationData.lng + (Math.random() - 0.5) * 0.1
-        }
+          lat: locationData.lat + (Math.random() - 0.5) * 0.05,
+          lng: locationData.lng + (Math.random() - 0.5) * 0.05
+        },
+        hourOfDay,
+        season: isWetSeason ? 'Wet' : (isDrySeason ? 'Dry' : 'Transition'),
+        date: date.toISOString().split('T')[0]
       });
     }
     
@@ -92,12 +232,15 @@ const Information = ({
         precipitation: data.map(d => d.precipitation),
         soilMoisture: data.map(d => d.soilMoisture),
         elevation: data.map(d => d.elevation),
-        vegetation: data.map(d => d.vegetation)
+        vegetation: data.map(d => d.vegetation),
+        uvIndex: data.map(d => d.uvIndex),
+        airQuality: data.map(d => d.airQuality),
+        cloudCover: data.map(d => d.cloudCover)
       },
       groups: {
         temperatureByTime: data.reduce((acc, d) => {
-          const hour = new Date(d.timestamp).getHours();
-          acc[hour] = (acc[hour] || 0) + d.temperature;
+          const hour = d.hourOfDay;
+          acc[hour] = (acc[hour] || []).concat(d.temperature);
           return acc;
         }, {}),
         humidityRanges: data.reduce((acc, d) => {
@@ -109,7 +252,32 @@ const Information = ({
           const bucket = Math.floor(d.pressure / 5) * 5;
           acc[bucket] = (acc[bucket] || 0) + 1;
           return acc;
+        }, {}),
+        weatherTypes: data.reduce((acc, d) => {
+          acc[d.weather] = (acc[d.weather] || 0) + 1;
+          return acc;
+        }, {}),
+        seasonalPatterns: data.reduce((acc, d) => {
+          acc[d.season] = (acc[d.season] || 0) + 1;
+          return acc;
+        }, {}),
+        uvIndexDistribution: data.reduce((acc, d) => {
+          const uvLevel = Math.floor(d.uvIndex);
+          acc[uvLevel] = (acc[uvLevel] || 0) + 1;
+          return acc;
+        }, {}),
+        airQualityLevels: data.reduce((acc, d) => {
+          acc[d.airQuality] = (acc[d.airQuality] || 0) + 1;
+          return acc;
         }, {})
+      },
+      metadata: {
+        source: 'Climate-based Realistic Data',
+        location: locationData.name || 'Buhera West',
+        lastUpdated: Date.now(),
+        totalPoints: dataPoints,
+        coverage: 'Subtropical Highland Climate Model',
+        season: isWetSeason ? 'Wet Season (Nov-Mar)' : (isDrySeason ? 'Dry Season (May-Sep)' : 'Transition Period')
       }
     };
   };

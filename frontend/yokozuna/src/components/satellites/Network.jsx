@@ -35,20 +35,35 @@ import * as satellite from 'satellite.js';
 
     useEffect(() => {
       // load satellite data
-      fetch('//cdn.jsdelivr.net/npm/globe.gl/example/datasets/space-track-leo.txt').then(r => r.text()).then(rawData => {
-        const tleData = rawData.replace(/\r/g, '')
-          .split(/\n(?=[^12])/)
-          .filter(d => d)
-          .map(tle => tle.split('\n'));
-        const satData = tleData.map(([name, ...tle]) => ({
-          satrec: satellite.twoline2satrec(...tle),
-          name: name.trim().replace(/^0 /, '')
-        }))
-        // exclude those that can't be propagated
-        .filter(d => !!satellite.propagate(d.satrec, new Date())?.position);
+      const loadSatelliteData = async () => {
+        try {
+          const response = await fetch('//cdn.jsdelivr.net/npm/globe.gl/example/datasets/space-track-leo.txt');
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          
+          const rawData = await response.text();
+          const tleData = rawData.replace(/\r/g, '')
+            .split(/\n(?=[^12])/)
+            .filter(d => d)
+            .map(tle => tle.split('\n'));
+            
+          const satData = tleData.map(([name, ...tle]) => ({
+            satrec: satellite.twoline2satrec(...tle),
+            name: name.trim().replace(/^0 /, '')
+          }))
+          // exclude those that can't be propagated
+          .filter(d => !!satellite.propagate(d.satrec, new Date())?.position);
 
-        setSatData(satData);
-      });
+          setSatData(satData);
+        } catch (error) {
+          console.error('Failed to load satellite data:', error);
+          // Optionally set some fallback data or error state
+          setSatData([]);
+        }
+      };
+
+      loadSatelliteData();
     }, []);
 
     const particlesData = useMemo(() => {

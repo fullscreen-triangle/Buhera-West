@@ -1,708 +1,422 @@
 import React, { useEffect, useRef, useState } from 'react'
-import Lenis from '@studio-freight/lenis'
-import { gsap } from 'gsap/dist/gsap'
-import { ScrollTrigger } from 'gsap/dist/ScrollTrigger'
-import * as d3 from 'd3'
-
-// Register ScrollTrigger plugin
-if (typeof window !== 'undefined') {
-  gsap.registerPlugin(ScrollTrigger)
-}
+import { DEFAULT_COORDINATES } from '@/config/coordinates'
 
 const WeatherScrollStory = () => {
-  const containerRef = useRef(null)
-  const chartRef = useRef(null)
-  const mapRef = useRef(null)
-  const [currentSection, setCurrentSection] = useState(0)
-  const lenisRef = useRef(null)
+  const mapRef = useRef()
+  const [map, setMap] = useState(null)
+  const [currentChapter, setCurrentChapter] = useState(0)
+  const [isMapLoaded, setIsMapLoaded] = useState(false)
 
-  // Weather data simulation
-  const weatherData = {
-    current: {
-      temperature: 26.8,
-      humidity: 67,
-      pressure: 1013.2,
-      windSpeed: 8.3,
-      windDirection: 225,
-      uvIndex: 8,
-      visibility: 12.5,
-      dewPoint: 18.2,
-      feelsLike: 29.1
-    },
-    hourly: Array.from({ length: 24 }, (_, i) => ({
-      hour: i,
-      temp: 26.8 + Math.sin(i * Math.PI / 12) * 8 + Math.random() * 3,
-      humidity: 67 + Math.sin(i * Math.PI / 8) * 15 + Math.random() * 5,
-      wind: 8.3 + Math.sin(i * Math.PI / 6) * 4 + Math.random() * 2,
-      pressure: 1013.2 + Math.sin(i * Math.PI / 10) * 8 + Math.random() * 3
-    })),
-    daily: Array.from({ length: 7 }, (_, i) => ({
-      day: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][i],
-      high: 28 + Math.random() * 8,
-      low: 18 + Math.random() * 5,
-      precipitation: Math.random() * 100,
-      icon: ['☀️', '⛅', '🌦️', '🌧️', '⛈️'][Math.floor(Math.random() * 5)]
-    }))
-  }
-
-  useEffect(() => {
-    // Initialize Lenis smooth scroll
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      smoothWheel: true,
-      syncTouch: false
-    })
-
-    lenisRef.current = lenis
-
-    function raf(time) {
-      lenis.raf(time)
-      requestAnimationFrame(raf)
-    }
-    requestAnimationFrame(raf)
-
-    // GSAP ScrollTrigger integration with Lenis
-    lenis.on('scroll', ScrollTrigger.update)
-
-    gsap.ticker.lagSmoothing(0)
-
-    return () => {
-      lenis.destroy()
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!containerRef.current) return
-
-    // Create D3 visualizations
-    createTemperatureChart()
-    createWindChart()
-    createPressureChart()
-    createWeatherMap()
-
-    // Setup scroll triggers
-    setupScrollTriggers()
-
-    return () => {
-      ScrollTrigger.getAll().forEach(trigger => trigger.kill())
-    }
-  }, [])
-
-  const createTemperatureChart = () => {
-    const svg = d3.select(chartRef.current)
-      .append('svg')
-      .attr('id', 'temp-chart')
-      .attr('width', 600)
-      .attr('height', 300)
-      .style('opacity', 0)
-
-    const margin = { top: 20, right: 30, bottom: 40, left: 50 }
-    const width = 600 - margin.left - margin.right
-    const height = 300 - margin.top - margin.bottom
-
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`)
-
-    const xScale = d3.scaleLinear()
-      .domain([0, 23])
-      .range([0, width])
-
-    const yScale = d3.scaleLinear()
-      .domain(d3.extent(weatherData.hourly, d => d.temp))
-      .nice()
-      .range([height, 0])
-
-    // Create gradient
-    const gradient = svg.append('defs')
-      .append('linearGradient')
-      .attr('id', 'temp-gradient')
-      .attr('gradientUnits', 'userSpaceOnUse')
-      .attr('x1', 0).attr('y1', height)
-      .attr('x2', 0).attr('y2', 0)
-
-    gradient.append('stop')
-      .attr('offset', '0%')
-      .attr('stop-color', '#ff6b6b')
-      .attr('stop-opacity', 0.1)
-
-    gradient.append('stop')
-      .attr('offset', '100%')
-      .attr('stop-color', '#4ecdc4')
-      .attr('stop-opacity', 0.8)
-
-    // Create line generator
-    const line = d3.line()
-      .x(d => xScale(d.hour))
-      .y(d => yScale(d.temp))
-      .curve(d3.curveCardinal)
-
-    // Create area generator
-    const area = d3.area()
-      .x(d => xScale(d.hour))
-      .y0(height)
-      .y1(d => yScale(d.temp))
-      .curve(d3.curveCardinal)
-
-    // Add axes
-    g.append('g')
-      .attr('transform', `translate(0,${height})`)
-      .call(d3.axisBottom(xScale).tickFormat(d => `${d}:00`))
-
-    g.append('g')
-      .call(d3.axisLeft(yScale).tickFormat(d => `${d}°C`))
-
-    // Add area
-    g.append('path')
-      .datum(weatherData.hourly)
-      .attr('fill', 'url(#temp-gradient)')
-      .attr('d', area)
-      .attr('class', 'temp-area')
-
-    // Add line
-    g.append('path')
-      .datum(weatherData.hourly)
-      .attr('fill', 'none')
-      .attr('stroke', '#4ecdc4')
-      .attr('stroke-width', 3)
-      .attr('d', line)
-      .attr('class', 'temp-line')
-
-    // Add data points
-    g.selectAll('.temp-dot')
-      .data(weatherData.hourly)
-      .enter().append('circle')
-      .attr('class', 'temp-dot')
-      .attr('cx', d => xScale(d.hour))
-      .attr('cy', d => yScale(d.temp))
-      .attr('r', 4)
-      .attr('fill', '#4ecdc4')
-      .attr('stroke', '#fff')
-      .attr('stroke-width', 2)
-  }
-
-  const createWindChart = () => {
-    const svg = d3.select(chartRef.current)
-      .append('svg')
-      .attr('id', 'wind-chart')
-      .attr('width', 300)
-      .attr('height', 300)
-      .style('opacity', 0)
-
-    const centerX = 150
-    const centerY = 150
-    const radius = 120
-
-    // Wind rose background circles
-    const circles = [40, 80, 120]
-    circles.forEach(r => {
-      svg.append('circle')
-        .attr('cx', centerX)
-        .attr('cy', centerY)
-        .attr('r', r)
-        .attr('fill', 'none')
-        .attr('stroke', '#e0e0e0')
-        .attr('stroke-width', 1)
-    })
-
-    // Wind direction indicators
-    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
-    directions.forEach((dir, i) => {
-      const angle = (i * 45 - 90) * Math.PI / 180
-      const x = centerX + Math.cos(angle) * (radius + 20)
-      const y = centerY + Math.sin(angle) * (radius + 20)
-      
-      svg.append('text')
-        .attr('x', x)
-        .attr('y', y)
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'central')
-        .text(dir)
-        .style('font-size', '12px')
-        .style('fill', '#666')
-    })
-
-    // Current wind indicator
-    const windAngle = (weatherData.current.windDirection - 90) * Math.PI / 180
-    const windX = centerX + Math.cos(windAngle) * (weatherData.current.windSpeed * 8)
-    const windY = centerY + Math.sin(windAngle) * (weatherData.current.windSpeed * 8)
-
-    svg.append('line')
-      .attr('x1', centerX)
-      .attr('y1', centerY)
-      .attr('x2', windX)
-      .attr('y2', windY)
-      .attr('stroke', '#ff6b6b')
-      .attr('stroke-width', 4)
-      .attr('class', 'wind-arrow')
-
-    svg.append('circle')
-      .attr('cx', windX)
-      .attr('cy', windY)
-      .attr('r', 6)
-      .attr('fill', '#ff6b6b')
-      .attr('class', 'wind-head')
-  }
-
-  const createPressureChart = () => {
-    const svg = d3.select(chartRef.current)
-      .append('svg')
-      .attr('id', 'pressure-chart')
-      .attr('width', 400)
-      .attr('height', 200)
-      .style('opacity', 0)
-
-    const margin = { top: 20, right: 30, bottom: 30, left: 60 }
-    const width = 400 - margin.left - margin.right
-    const height = 200 - margin.top - margin.bottom
-
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`)
-
-    const xScale = d3.scaleLinear()
-      .domain([0, 23])
-      .range([0, width])
-
-    const yScale = d3.scaleLinear()
-      .domain(d3.extent(weatherData.hourly, d => d.pressure))
-      .nice()
-      .range([height, 0])
-
-    const line = d3.line()
-      .x(d => xScale(d.hour))
-      .y(d => yScale(d.pressure))
-      .curve(d3.curveMonotoneX)
-
-    // Add axes
-    g.append('g')
-      .attr('transform', `translate(0,${height})`)
-      .call(d3.axisBottom(xScale).tickFormat(d => `${d}h`))
-
-    g.append('g')
-      .call(d3.axisLeft(yScale).tickFormat(d => `${d} hPa`))
-
-    // Add pressure line
-    g.append('path')
-      .datum(weatherData.hourly)
-      .attr('fill', 'none')
-      .attr('stroke', '#9b59b6')
-      .attr('stroke-width', 2)
-      .attr('d', line)
-      .attr('class', 'pressure-line')
-  }
-
-  const createWeatherMap = () => {
-    const svg = d3.select(mapRef.current)
-      .append('svg')
-      .attr('width', '100%')
-      .attr('height', 400)
-
-    // Simple weather map visualization
-    const mapWidth = 600
-    const mapHeight = 400
-
-    // Background
-    svg.append('rect')
-      .attr('width', mapWidth)
-      .attr('height', mapHeight)
-      .attr('fill', '#87CEEB')
-      .attr('opacity', 0.3)
-
-    // Weather systems
-    const weatherSystems = [
-      { x: 150, y: 100, type: 'high', intensity: 0.8 },
-      { x: 400, y: 200, type: 'low', intensity: 0.6 },
-      { x: 300, y: 300, type: 'front', intensity: 0.7 }
-    ]
-
-    weatherSystems.forEach(system => {
-      const color = system.type === 'high' ? '#4CAF50' : 
-                   system.type === 'low' ? '#f44336' : '#FF9800'
-      
-      svg.append('circle')
-        .attr('cx', system.x)
-        .attr('cy', system.y)
-        .attr('r', system.intensity * 50)
-        .attr('fill', color)
-        .attr('opacity', 0.4)
-        .attr('class', `weather-${system.type}`)
-    })
-
-    // Current location marker
-    svg.append('circle')
-      .attr('cx', 300)
-      .attr('cy', 200)
-      .attr('r', 8)
-      .attr('fill', '#2196F3')
-      .attr('stroke', '#fff')
-      .attr('stroke-width', 3)
-      .attr('class', 'location-marker')
-  }
-
-  const setupScrollTriggers = () => {
-    const sections = [
-      '#current-weather',
-      '#temperature-detail', 
-      '#wind-analysis',
-      '#pressure-trends',
-      '#forecast',
-      '#weather-map'
-    ]
-
-    sections.forEach((section, index) => {
-      ScrollTrigger.create({
-        trigger: section,
-        start: 'top center',
-        end: 'bottom center',
-        onEnter: () => {
-          setCurrentSection(index)
-          animateSection(index)
+  // Buhera-West region story configuration
+  const config = {
+    accessToken: process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw',
+    style: 'mapbox://styles/mapbox/satellite-streets-v12',
+    showMarkers: true,
+    markerColor: '#FF6B35',
+    theme: 'dark',
+    use3dTerrain: true,
+    title: 'Buhera-West Weather Intelligence',
+    subtitle: 'Advanced meteorological analysis and prediction systems for Southern African agricultural regions',
+    byline: 'Southern African Climatic Research Initiative',
+    footer: 'Data sources: Weather stations, satellite imagery, and ground sensors across Buhera-West region',
+    chapters: [
+      {
+        id: 'overview',
+        alignment: 'center',
+        title: 'Buhera-West Overview',
+        description: `Welcome to the Buhera-West Agricultural Weather Analysis Platform. This region in Zimbabwe's Manicaland Province covers approximately 2,400 km² of diverse agricultural landscape. Our comprehensive monitoring system tracks weather patterns across multiple microclimates to support agricultural decision-making.`,
+        location: {
+          center: [DEFAULT_COORDINATES.longitude, DEFAULT_COORDINATES.latitude],
+          zoom: 8.5,
+          pitch: 45,
+          bearing: 0
         },
-        onLeave: () => {
-          if (index < sections.length - 1) {
-            setCurrentSection(index + 1)
-          }
-        },
-        onEnterBack: () => {
-          setCurrentSection(index)
-          animateSection(index)
+        mapAnimation: 'flyTo',
+        weatherData: {
+          temperature: 24.5,
+          humidity: 67,
+          rainfall: 1250,
+          stations: 12
         }
+      },
+      {
+        id: 'central-station',
+        alignment: 'left',
+        title: 'Central Weather Station',
+        description: `Our primary meteorological station located at the geographic center of Buhera-West (${DEFAULT_COORDINATES.latitude}°S, ${DEFAULT_COORDINATES.longitude}°E). This facility houses advanced atmospheric sensors, soil monitoring equipment, and serves as the central data hub for the entire network.`,
+        location: {
+          center: [DEFAULT_COORDINATES.longitude, DEFAULT_COORDINATES.latitude],
+          zoom: 12,
+          pitch: 60,
+          bearing: -15
+        },
+        mapAnimation: 'flyTo',
+        weatherData: {
+          temperature: 25.2,
+          humidity: 65,
+          windSpeed: 12.4,
+          pressure: 1013.2
+        }
+      },
+      {
+        id: 'northern-highlands',
+        alignment: 'right',
+        title: 'Northern Highland Zone',
+        description: `The northern highlands experience cooler temperatures and higher precipitation due to elevation effects. This microclimate zone is crucial for tobacco and coffee cultivation. Average elevation: 1,200-1,400m above sea level.`,
+        location: {
+          center: [DEFAULT_COORDINATES.longitude + 0.02, DEFAULT_COORDINATES.latitude - 0.15],
+          zoom: 10,
+          pitch: 50,
+          bearing: 30
+        },
+        mapAnimation: 'flyTo',
+        weatherData: {
+          temperature: 22.1,
+          humidity: 78,
+          rainfall: 1450,
+          elevation: 1320
+        }
+      },
+      {
+        id: 'southern-lowlands',
+        alignment: 'left',
+        title: 'Southern Lowland Valley',
+        description: `The southern valley region features warmer, drier conditions ideal for maize and cotton production. This area experiences distinct wet and dry seasons with sophisticated irrigation systems supporting year-round agriculture.`,
+        location: {
+          center: [DEFAULT_COORDINATES.longitude - 0.01, DEFAULT_COORDINATES.latitude + 0.12],
+          zoom: 11,
+          pitch: 40,
+          bearing: -45
+        },
+        mapAnimation: 'flyTo',
+        weatherData: {
+          temperature: 27.8,
+          humidity: 52,
+          rainfall: 980,
+          elevation: 850
+        }
+      },
+      {
+        id: 'eastern-watershed',
+        alignment: 'center',
+        title: 'Eastern Watershed',
+        description: `The eastern boundary follows the watershed divide, where precipitation patterns shift dramatically. This critical zone affects water distribution across the entire region and is monitored by our specialized hydrological sensors.`,
+        location: {
+          center: [DEFAULT_COORDINATES.longitude + 0.25, DEFAULT_COORDINATES.latitude],
+          zoom: 9,
+          pitch: 35,
+          bearing: 90
+        },
+        mapAnimation: 'flyTo',
+        weatherData: {
+          precipitation: 1680,
+          watershed: 'Odzi River',
+          monitoring: 'Hydrological',
+          flowRate: '245 m³/s'
+        }
+      },
+      {
+        id: 'agricultural-zones',
+        alignment: 'full',
+        title: 'Agricultural Monitoring Network',
+        description: `Our comprehensive sensor network spans five distinct agricultural zones, each with unique microclimatic conditions. Real-time data from 47 weather stations, 156 soil sensors, and 34 atmospheric monitoring points provides unprecedented insight into regional weather patterns.`,
+        location: {
+          center: [DEFAULT_COORDINATES.longitude, DEFAULT_COORDINATES.latitude],
+          zoom: 7,
+          pitch: 20,
+          bearing: 0
+        },
+        mapAnimation: 'flyTo',
+        weatherData: {
+          totalStations: 47,
+          soilSensors: 156,
+          atmosphericPoints: 34,
+          coverage: '2400 km²'
+        }
+      }
+    ]
+  }
+
+  // Initialize Mapbox map
+  useEffect(() => {
+    if (!mapRef.current || map) return
+
+    // Load Mapbox GL JS dynamically
+    const script = document.createElement('script')
+    script.src = 'https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.js'
+    script.onload = () => {
+      const link = document.createElement('link')
+      link.href = 'https://api.mapbox.com/mapbox-gl-js/v3.8.0/mapbox-gl.css'
+      link.rel = 'stylesheet'
+      document.head.appendChild(link)
+
+      // Load scrollama
+      const scrollamaScript = document.createElement('script')
+      scrollamaScript.src = 'https://unpkg.com/scrollama'
+      scrollamaScript.onload = () => {
+        initializeMap()
+      }
+      document.head.appendChild(scrollamaScript)
+    }
+    document.head.appendChild(script)
+
+    const initializeMap = () => {
+      // Set access token
+      window.mapboxgl.accessToken = config.accessToken
+
+      // Create map
+      const mapInstance = new window.mapboxgl.Map({
+        container: mapRef.current,
+        style: config.style,
+        center: config.chapters[0].location.center,
+        zoom: config.chapters[0].location.zoom,
+        bearing: config.chapters[0].location.bearing,
+        pitch: config.chapters[0].location.pitch,
+        interactive: false,
+        projection: 'mercator'
       })
-    })
 
-    // Chart animations
-    ScrollTrigger.create({
-      trigger: '#temperature-detail',
-      start: 'top center',
-      onEnter: () => {
-        gsap.to('#temp-chart', { 
-          opacity: 1, 
-          duration: 1,
-          ease: 'power2.out'
-        })
-        
-        // Animate temperature line
-        const pathLength = d3.select('.temp-line').node()?.getTotalLength()
-        if (pathLength) {
-          gsap.fromTo('.temp-line', 
-            { 
-              strokeDasharray: pathLength,
-              strokeDashoffset: pathLength 
-            },
-            { 
-              strokeDashoffset: 0,
-              duration: 2,
-              ease: 'power2.out'
+      // Store marker reference
+      let marker = null
+
+      mapInstance.on('load', () => {
+        // Add 3D terrain if enabled
+        if (config.use3dTerrain) {
+          mapInstance.addSource('mapbox-dem', {
+            type: 'raster-dem',
+            url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+            tileSize: 512,
+            maxzoom: 14
+          })
+          mapInstance.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 })
+
+          mapInstance.addLayer({
+            id: 'sky',
+            type: 'sky',
+            paint: {
+              'sky-type': 'atmosphere',
+              'sky-atmosphere-sun': [0.0, 0.0],
+              'sky-atmosphere-sun-intensity': 15
             }
-          )
+          })
         }
-      }
-    })
 
-    ScrollTrigger.create({
-      trigger: '#wind-analysis',
-      start: 'top center',
-      onEnter: () => {
-        gsap.to('#wind-chart', { 
-          opacity: 1, 
-          duration: 1 
-        })
-        
-        gsap.fromTo('.wind-arrow',
-          { strokeDasharray: '0,100' },
-          { 
-            strokeDasharray: '100,0',
-            duration: 1.5,
-            ease: 'power2.out'
-          }
-        )
-      }
-    })
+        // Add single marker that will move
+        if (config.showMarkers) {
+          marker = new window.mapboxgl.Marker({ 
+            color: config.markerColor
+          })
+          marker.setLngLat(config.chapters[0].location.center).addTo(mapInstance)
+        }
 
-    ScrollTrigger.create({
-      trigger: '#pressure-trends',
-      start: 'top center',
-      onEnter: () => {
-        gsap.to('#pressure-chart', { 
-          opacity: 1, 
-          duration: 1 
-        })
-      }
-    })
+        setMap(mapInstance)
+        setIsMapLoaded(true)
 
-    // Parallax effects
-    gsap.to('.weather-bg', {
-      yPercent: -50,
-      ease: 'none',
-      scrollTrigger: {
-        trigger: containerRef.current,
-        start: 'top bottom',
-        end: 'bottom top',
-        scrub: true
-      }
-    })
-  }
-
-  const animateSection = (sectionIndex) => {
-    // Add section-specific animations
-    const tl = gsap.timeline()
-    
-    switch(sectionIndex) {
-      case 0:
-        tl.from('.current-temp', { scale: 0.5, opacity: 0, duration: 0.8 })
-          .from('.current-details', { y: 30, opacity: 0, duration: 0.6, stagger: 0.1 }, '-=0.4')
-        break
-      case 1:
-        tl.from('.temp-chart-container', { x: -100, opacity: 0, duration: 0.8 })
-        break
-      case 2:
-        tl.from('.wind-container', { rotation: 180, opacity: 0, duration: 1 })
-        break
-      case 3:
-        tl.from('.pressure-container', { y: 50, opacity: 0, duration: 0.8 })
-        break
-      case 4:
-        tl.from('.forecast-cards', { y: 30, opacity: 0, duration: 0.6, stagger: 0.1 })
-        break
-      case 5:
-        tl.from('.map-container', { scale: 0.9, opacity: 0, duration: 1 })
-        break
+        // Setup scrollama
+        const scroller = window.scrollama()
+        scroller
+          .setup({
+            step: '.step',
+            offset: 0.5,
+            progress: true
+          })
+          .onStepEnter(async (response) => {
+            const chapterIndex = parseInt(response.element.getAttribute('data-chapter'))
+            const chapter = config.chapters[chapterIndex]
+            
+            if (chapter) {
+              response.element.classList.add('active')
+              setCurrentChapter(chapterIndex)
+              
+              // Animate map to chapter location
+              mapInstance[chapter.mapAnimation || 'flyTo'](chapter.location)
+              
+              // Update marker position
+              if (marker) {
+                marker.setLngLat(chapter.location.center)
+              }
+            }
+          })
+          .onStepExit((response) => {
+            response.element.classList.remove('active')
+          })
+      })
     }
-  }
+
+    return () => {
+      if (map) {
+        map.remove()
+      }
+    }
+  }, [])
+
+
 
   return (
-    <div ref={containerRef} className="weather-scroll-story min-h-screen bg-gradient-to-b from-blue-400 via-blue-500 to-blue-600 text-white">
-      {/* Fixed Navigation */}
-      <div className="fixed top-4 right-4 z-50 bg-white/10 backdrop-blur-md rounded-lg p-3">
-        <div className="flex flex-col space-y-2">
-          {['Current', 'Temp', 'Wind', 'Pressure', 'Forecast', 'Map'].map((label, index) => (
-            <div 
+    <div className="weather-scroll-story relative">
+      {/* Fixed map background */}
+      <div 
+        ref={mapRef}
+        className="fixed top-0 left-0 w-full h-screen z-0"
+        style={{ height: '100vh', width: '100vw' }}
+      />
+
+      {/* Story content */}
+      <div className="relative z-10">
+        {/* Header */}
+        <div className={`min-h-screen flex items-center justify-center text-center p-8 ${config.theme === 'dark' ? 'text-white' : 'text-gray-800'}`}>
+          <div className="max-w-4xl bg-black bg-opacity-60 p-8 rounded-2xl backdrop-blur-sm">
+            <h1 className="text-5xl md:text-7xl font-bold mb-4 text-white">{config.title}</h1>
+            <h2 className="text-xl md:text-2xl mb-6 text-gray-200">{config.subtitle}</h2>
+            <p className="text-lg text-gray-300">{config.byline}</p>
+          </div>
+        </div>
+
+        {/* Chapters */}
+        <div className="space-y-0">
+          {config.chapters.map((chapter, index) => (
+            <div
+              key={chapter.id}
+              data-chapter={index}
+              className={`step min-h-screen flex items-center transition-opacity duration-500 ${
+                chapter.alignment === 'left' ? 'lefty' :
+                chapter.alignment === 'right' ? 'righty' :
+                chapter.alignment === 'full' ? 'fully' :
+                'centered'
+              }`}
+            >
+                             <div className="p-8 bg-black bg-opacity-70 rounded-2xl backdrop-blur-sm text-white">
+                {chapter.title && (
+                  <h3 className="text-3xl md:text-4xl font-bold mb-4">{chapter.title}</h3>
+                )}
+                
+                {chapter.description && (
+                  <p className="text-lg leading-relaxed mb-6">{chapter.description}</p>
+                )}
+
+                {/* Weather data display */}
+                {chapter.weatherData && (
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {Object.entries(chapter.weatherData).map(([key, value]) => (
+                      <div key={key} className="bg-white bg-opacity-10 rounded-lg p-3">
+                        <div className="font-semibold capitalize text-gray-300">
+                          {key.replace(/([A-Z])/g, ' $1').trim()}
+                        </div>
+                        <div className="text-xl font-bold text-white">
+                          {typeof value === 'number' ? 
+                            (key.includes('temperature') ? `${value}°C` :
+                             key.includes('humidity') ? `${value}%` :
+                             key.includes('rainfall') || key.includes('precipitation') ? `${value}mm` :
+                             key.includes('elevation') ? `${value}m` :
+                             key.includes('windSpeed') ? `${value} km/h` :
+                             key.includes('pressure') ? `${value} hPa` :
+                             value) : value
+                          }
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="min-h-screen flex items-center justify-center text-center p-8">
+          <div className="max-w-4xl bg-black bg-opacity-60 p-8 rounded-2xl backdrop-blur-sm text-white">
+            <p className="text-lg">{config.footer}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Chapter navigation indicators */}
+      <div className="fixed right-8 top-1/2 transform -translate-y-1/2 z-20">
+        <div className="flex flex-col space-y-3">
+          {config.chapters.map((_, index) => (
+            <div
               key={index}
-              className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                currentSection === index ? 'bg-white scale-125' : 'bg-white/30'
+              className={`w-4 h-4 rounded-full border-2 transition-all duration-300 ${
+                index === currentChapter 
+                  ? 'bg-orange-500 border-orange-500 scale-125' 
+                  : 'bg-transparent border-white hover:border-orange-300'
               }`}
             />
           ))}
         </div>
       </div>
 
-      {/* Background Elements */}
-      <div className="weather-bg fixed inset-0 opacity-20">
-        <div className="absolute top-10 left-10 w-32 h-32 bg-white rounded-full blur-3xl animate-pulse"></div>
-        <div className="absolute top-40 right-20 w-24 h-24 bg-white rounded-full blur-2xl animate-pulse delay-1000"></div>
-        <div className="absolute bottom-20 left-1/3 w-40 h-40 bg-white rounded-full blur-3xl animate-pulse delay-2000"></div>
-      </div>
+      <style jsx>{`
+        .step {
+          padding-bottom: 50vh;
+          opacity: 0.25;
+        }
+        
+        .step.active {
+          opacity: 0.9 !important;
+        }
+        
+        .weather-scroll-story {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          margin: 0;
+          padding: 0;
+        }
 
-      {/* Current Weather Section */}
-      <section id="current-weather" className="min-h-screen flex items-center justify-center relative">
-        <div className="text-center space-y-8 max-w-4xl mx-auto px-8">
-          <h1 className="text-6xl md:text-8xl font-bold mb-4">
-            Personal Weather
-          </h1>
-          <p className="text-xl md:text-2xl opacity-80 mb-12">
-            High-precision atmospheric analysis for Buhera-West
-          </p>
+        #map {
+          top: 0;
+          height: 100vh;
+          width: 100vw;
+          position: fixed;
+        }
+
+        .step div {
+          padding: 25px 50px;
+          line-height: 25px;
+          font-size: 13px;
+        }
+
+        .centered {
+          width: 50vw;
+          margin: 0 auto;
+        }
+
+        .lefty {
+          width: 33vw;
+          margin-left: 5vw;
+        }
+
+        .righty {
+          width: 33vw;
+          margin-left: 62vw;
+        }
+
+        .fully {
+          width: 100%;
+          margin: auto;
+        }
+
+        /* Mapbox canvas touch handling */
+        .mapboxgl-canvas-container.mapboxgl-touch-zoom-rotate.mapboxgl-touch-drag-pan,
+        .mapboxgl-canvas-container.mapboxgl-touch-zoom-rotate.mapboxgl-touch-drag-pan .mapboxgl-canvas {
+          touch-action: unset;
+        }
+        
+        @media (max-width: 750px) {
+          .centered,
+          .lefty,
+          .righty,
+          .fully {
+            width: 90vw;
+            margin: 0 auto;
+          }
           
-          <div className="current-temp text-8xl md:text-9xl font-bold mb-8">
-            {weatherData.current.temperature}°C
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 current-details">
-            <div className="bg-white/10 backdrop-blur-md rounded-lg p-4">
-              <div className="text-sm opacity-70">Feels Like</div>
-              <div className="text-2xl font-bold">{weatherData.current.feelsLike}°C</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-lg p-4">
-              <div className="text-sm opacity-70">Humidity</div>
-              <div className="text-2xl font-bold">{weatherData.current.humidity}%</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-lg p-4">
-              <div className="text-sm opacity-70">Wind</div>
-              <div className="text-2xl font-bold">{weatherData.current.windSpeed} m/s</div>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-lg p-4">
-              <div className="text-sm opacity-70">UV Index</div>
-              <div className="text-2xl font-bold">{weatherData.current.uvIndex}</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Temperature Detail Section */}
-      <section id="temperature-detail" className="min-h-screen flex items-center justify-center">
-        <div className="max-w-6xl mx-auto px-8 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          <div className="space-y-6">
-            <h2 className="text-4xl md:text-5xl font-bold">
-              Temperature Trends
-            </h2>
-            <p className="text-lg opacity-80">
-              24-hour temperature analysis showing thermal patterns and atmospheric variations. 
-              Peak temperatures typically occur between 2-4 PM, with overnight cooling creating optimal agricultural conditions.
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white/10 backdrop-blur-md rounded-lg p-4">
-                <div className="text-sm opacity-70">Daily High</div>
-                <div className="text-2xl font-bold">32.1°C</div>
-              </div>
-              <div className="bg-white/10 backdrop-blur-md rounded-lg p-4">
-                <div className="text-sm opacity-70">Daily Low</div>
-                <div className="text-2xl font-bold">18.7°C</div>
-              </div>
-            </div>
-          </div>
-          <div className="temp-chart-container bg-white/5 backdrop-blur-md rounded-lg p-6">
-            <div ref={chartRef} className="w-full"></div>
-          </div>
-        </div>
-      </section>
-
-      {/* Wind Analysis Section */}
-      <section id="wind-analysis" className="min-h-screen flex items-center justify-center">
-        <div className="max-w-6xl mx-auto px-8 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          <div className="wind-container bg-white/5 backdrop-blur-md rounded-lg p-6 text-center">
-            <h3 className="text-2xl font-bold mb-4">Wind Rose</h3>
-            <div className="flex justify-center">
-              {/* Wind chart will be inserted here */}
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-sm opacity-70">Direction</div>
-                <div className="text-xl font-bold">SW</div>
-              </div>
-              <div>
-                <div className="text-sm opacity-70">Gusts</div>
-                <div className="text-xl font-bold">12.4 m/s</div>
-              </div>
-            </div>
-          </div>
-          <div className="space-y-6">
-            <h2 className="text-4xl md:text-5xl font-bold">
-              Wind Patterns
-            </h2>
-            <p className="text-lg opacity-80">
-              Prevailing southwesterly winds bringing moisture from the Indian Ocean. 
-              Wind speeds are optimal for agricultural ventilation and natural cooling.
-            </p>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span>Surface Wind</span>
-                <span className="font-bold">{weatherData.current.windSpeed} m/s</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Wind Direction</span>
-                <span className="font-bold">{weatherData.current.windDirection}°</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Turbulence</span>
-                <span className="font-bold text-green-400">Low</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Pressure Trends Section */}
-      <section id="pressure-trends" className="min-h-screen flex items-center justify-center">
-        <div className="max-w-6xl mx-auto px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              Atmospheric Pressure
-            </h2>
-            <p className="text-lg opacity-80 max-w-3xl mx-auto">
-              Barometric pressure trends indicate stable weather conditions. 
-              Rising pressure suggests continued fair weather, optimal for outdoor agricultural activities.
-            </p>
-          </div>
-          <div className="pressure-container bg-white/5 backdrop-blur-md rounded-lg p-8">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-center">
-              <div className="lg:col-span-2">
-                {/* Pressure chart will be inserted here */}
-              </div>
-              <div className="space-y-4">
-                <div className="bg-white/10 rounded-lg p-4">
-                  <div className="text-sm opacity-70">Current Pressure</div>
-                  <div className="text-3xl font-bold">{weatherData.current.pressure}</div>
-                  <div className="text-sm">hPa</div>
-                </div>
-                <div className="bg-white/10 rounded-lg p-4">
-                  <div className="text-sm opacity-70">Trend</div>
-                  <div className="text-xl font-bold text-green-400">Rising ↗</div>
-                </div>
-                <div className="bg-white/10 rounded-lg p-4">
-                  <div className="text-sm opacity-70">Sea Level</div>
-                  <div className="text-xl font-bold">1015.8 hPa</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Forecast Section */}
-      <section id="forecast" className="min-h-screen flex items-center justify-center">
-        <div className="max-w-6xl mx-auto px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              7-Day Outlook
-            </h2>
-            <p className="text-lg opacity-80">
-              Extended weather forecast with precipitation probability and agricultural implications
-            </p>
-          </div>
-          <div className="forecast-cards grid grid-cols-1 md:grid-cols-7 gap-4">
-            {weatherData.daily.map((day, index) => (
-              <div key={index} className="bg-white/10 backdrop-blur-md rounded-lg p-4 text-center">
-                <div className="text-sm opacity-70 mb-2">{day.day}</div>
-                <div className="text-3xl mb-2">{day.icon}</div>
-                <div className="space-y-1">
-                  <div className="font-bold">{Math.round(day.high)}°</div>
-                  <div className="text-sm opacity-70">{Math.round(day.low)}°</div>
-                  <div className="text-xs">
-                    <div className="text-blue-300">{Math.round(day.precipitation)}%</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Weather Map Section */}
-      <section id="weather-map" className="min-h-screen flex items-center justify-center">
-        <div className="max-w-6xl mx-auto px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              Regional Weather Systems
-            </h2>
-            <p className="text-lg opacity-80">
-              Live atmospheric conditions across Southern Africa with pressure systems and frontal boundaries
-            </p>
-          </div>
-          <div className="map-container bg-white/5 backdrop-blur-md rounded-lg p-8">
-            <div ref={mapRef} className="w-full flex justify-center">
-              {/* Weather map will be inserted here */}
-            </div>
-            <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="text-center">
-                <div className="w-4 h-4 bg-green-500 rounded-full mx-auto mb-2"></div>
-                <div className="text-sm">High Pressure</div>
-              </div>
-              <div className="text-center">
-                <div className="w-4 h-4 bg-red-500 rounded-full mx-auto mb-2"></div>
-                <div className="text-sm">Low Pressure</div>
-              </div>
-              <div className="text-center">
-                <div className="w-4 h-4 bg-orange-500 rounded-full mx-auto mb-2"></div>
-                <div className="text-sm">Weather Front</div>
-              </div>
-              <div className="text-center">
-                <div className="w-4 h-4 bg-blue-500 rounded-full mx-auto mb-2"></div>
-                <div className="text-sm">Current Location</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+          .step {
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+            justify-content: center !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }
