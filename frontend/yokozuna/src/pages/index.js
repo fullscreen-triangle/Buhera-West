@@ -10,6 +10,27 @@ import FadeTransition from '@/components/weather/FadeTransition';
 import weatherService from '@/services/weatherService';
 import AIAssistant from '@/components/ai/AIAssistant';
 import AITooltip, { QuickExplain, SmartTimestamp } from '@/components/ai/AITooltip';
+import dynamic from 'next/dynamic';
+import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
+import Navigation from '@/components/Navigation';
+import GeocoderSearch from '@/components/location/GeocoderSearch';
+import Information from '@/components/information/Information';
+import { DEFAULT_COORDINATES } from '@/config/coordinates';
+
+// Dynamic import to prevent SSR issues with react-globe.gl
+const WeatherGlobeDynamic = dynamic(() => import('@/components/weather/WeatherGlobe'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full bg-gradient-to-b from-blue-900 to-green-900 flex items-center justify-center">
+      <div className="text-white text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+        <p className="text-lg">Loading Interactive Globe...</p>
+        <p className="text-sm opacity-75">Connecting to weather networks worldwide • Analyzing atmospheric conditions • Preparing interactive globe</p>
+      </div>
+    </div>
+  )
+});
 
 export default function Home() {
   // Application state
@@ -185,7 +206,7 @@ export default function Home() {
         animationDuration={1500}
       >
         {/* Globe Component */}
-        <WeatherGlobe
+        <WeatherGlobeDynamic
           weatherData={filteredWeatherData}
           focusedLocation={focusedLocation}
           onLocationClick={handleLocationClick}

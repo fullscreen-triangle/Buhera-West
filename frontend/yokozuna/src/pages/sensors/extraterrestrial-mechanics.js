@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import TransitionEffect from '@/components/TransitionEffect';
+import dynamic from 'next/dynamic';
 import OrbitalMechanics from '@/components/satellites/OrbitalMechanics';
-import Network from '@/components/satellites/Network';
+import { DEFAULT_COORDINATES } from '@/config/coordinates';
 import { useTime } from '../../contexts/TimeContext';
 import useSceneTime from '../../hooks/useSceneTime';
 
@@ -16,6 +17,21 @@ import useSceneTime from '../../hooks/useSceneTime';
  * - Atmospheric signal delay analysis for environmental intelligence
  * - Time-synchronized orbital mechanics with global timeline controls
  */
+
+// Dynamic import to prevent SSR issues with react-globe.gl
+const Network = dynamic(() => import('@/components/satellites/Network'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full bg-gradient-to-b from-indigo-900 to-black flex items-center justify-center">
+      <div className="text-white text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+        <p className="text-lg">Loading Satellite Network...</p>
+        <p className="text-sm opacity-75">Initializing GNSS constellation • Loading orbital mechanics • Preparing 3D visualization</p>
+      </div>
+    </div>
+  )
+});
+
 const ExtraterrestrialMechanics = () => {
   const [activeView, setActiveView] = useState('orbital'); // 'orbital' | 'network'
   const [satelliteData, setSatelliteData] = useState({

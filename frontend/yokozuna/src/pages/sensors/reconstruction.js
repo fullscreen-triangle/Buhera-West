@@ -4,12 +4,26 @@
 import React, { useEffect, useState } from 'react';
 import Head from 'next/head';
 import TransitionEffect from '@/components/TransitionEffect';
-import PathReconstruction from '@/components/satellites/PathReconstruction';
+import dynamic from 'next/dynamic';
 import StripImage from '@/components/satellites/StripImage';
 import OrbitalMechanics from '@/components/satellites/OrbitalMechanics';
 import { DEFAULT_COORDINATES } from '@/config/coordinates';
 import { useTime } from '../../contexts/TimeContext';
 import useSceneTime from '../../hooks/useSceneTime';
+
+// Dynamic import to prevent SSR issues with react-globe.gl
+const PathReconstruction = dynamic(() => import('@/components/satellites/PathReconstruction'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full bg-gradient-to-b from-indigo-900 to-purple-900 flex items-center justify-center">
+      <div className="text-white text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+        <p className="text-lg">Loading Orbital Path Reconstruction...</p>
+        <p className="text-sm opacity-75">Initializing satellite tracking • Loading orbital mechanics • Preparing 3D visualization</p>
+      </div>
+    </div>
+  )
+});
 
 /**
  * Orbital Path Reconstruction Dashboard

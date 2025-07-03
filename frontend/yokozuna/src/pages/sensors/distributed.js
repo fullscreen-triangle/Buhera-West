@@ -2,12 +2,26 @@ import React, { useState, useEffect } from 'react';
 import AnimatedText from "@/components/AnimatedText";
 import Head from "next/head";
 import TransitionEffect from "@/components/TransitionEffect";
-import InformationGlobe from '@/components/information/InformationGlobe';
+import dynamic from 'next/dynamic';
 import Information from '@/components/information/Information';
 import { SensorDashboard } from '@/components/acquisition';
 import { DEFAULT_COORDINATES } from '@/config/coordinates';
 import { useTime } from '../../contexts/TimeContext';
 import useSceneTime from '../../hooks/useSceneTime';
+
+// Dynamic import to prevent SSR issues with react-globe.gl
+const InformationGlobe = dynamic(() => import('@/components/information/InformationGlobe'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full bg-gradient-to-b from-blue-900 to-purple-900 flex items-center justify-center">
+      <div className="text-white text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+        <p className="text-lg">Loading Distributed Sensor Network...</p>
+        <p className="text-sm opacity-75">Initializing global sensor visualization • Loading real-time data • Preparing 3D globe</p>
+      </div>
+    </div>
+  )
+});
 
 /**
  * Distributed Sensor Network Dashboard
