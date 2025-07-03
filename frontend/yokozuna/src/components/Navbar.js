@@ -3,7 +3,6 @@ import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/router";
 import { motion, AnimatePresence } from "framer-motion";
 import { useThemeSwitch } from "./Hooks/useThemeSwitch";
-import Logo from "./Logo";
 import { TwitterIcon, LinkedInIcon, PinterestIcon, DribbbleIcon, GithubIcon, SunIcon, MoonIcon } from "./Icons";
 
 // Custom sensor system icons
@@ -774,9 +773,7 @@ const Navbar = () => {
           : null
       }
 
-      <div className='absolute left-[50%] top-2 translate-x-[-50%]'>
-        <Logo />
-      </div>
+    
     </header>
   )
 }

@@ -1,22 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import AnimatedText from "@/components/AnimatedText";
-import Layout from "@/components/Layout";
 import Head from "next/head";
 import TransitionEffect from "@/components/TransitionEffect";
-import WeatherGlobe from '@/components/weather/WeatherGlobe';
+
 import WeatherOverlay from '@/components/weather/WeatherOverlay';
 import WeatherDetails from '@/components/weather/WeatherDetails';
 import FadeTransition from '@/components/weather/FadeTransition';
 import weatherService from '@/services/weatherService';
 import AIAssistant from '@/components/ai/AIAssistant';
-import AITooltip, { QuickExplain, SmartTimestamp } from '@/components/ai/AITooltip';
+import { QuickExplain } from '@/components/ai/AITooltip';
 import dynamic from 'next/dynamic';
-import Image from 'next/image';
-import { motion, AnimatePresence } from 'framer-motion';
-import Navigation from '@/components/Navigation';
-import GeocoderSearch from '@/components/location/GeocoderSearch';
-import Information from '@/components/information/Information';
-import { DEFAULT_COORDINATES } from '@/config/coordinates';
+
 
 // Dynamic import to prevent SSR issues with react-globe.gl
 const WeatherGlobeDynamic = dynamic(() => import('@/components/weather/WeatherGlobe'), {
@@ -241,7 +235,7 @@ export default function Home() {
         {/* Performance Indicator */}
         {globalWeatherData.length > 0 && (
           <div className="fixed top-4 left-4 text-white text-xs bg-black bg-opacity-50 px-3 py-2 rounded-lg z-30">
-            <AITooltip 
+            <QuickExplain 
               dataKey="Data Points" 
               dataValue={`${globalWeatherData.length} total, ${filteredWeatherData.length} visible`}
               dataContext={{ 
@@ -250,7 +244,7 @@ export default function Home() {
               }}
             >
               {globalWeatherData.length} locations • {filteredWeatherData.length} visible
-            </AITooltip>
+            </QuickExplain>
           </div>
         )}
 

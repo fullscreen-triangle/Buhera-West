@@ -3,195 +3,236 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { message, context, modelType, workingMemory } = req.body;
-
-  if (!message) {
-    return res.status(400).json({ error: 'Message is required' });
-  }
-
   try {
-    // Enhance context with working memory
-    const enhancedContext = buildEnhancedContext(context, workingMemory);
+    const { message, context, preferredModel } = req.body;
+
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    // Intelligent routing decision
+    const routingDecision = determineRouting(message, context, preferredModel);
     
-    // Route to appropriate model based on Combine Harvester methodology
-    const response = await routeToModel(message, enhancedContext, modelType);
-    
+    console.log('AI Routing Decision:', routingDecision);
+
+    // Route to appropriate model(s)
+    const response = await routeToModel(message, context, routingDecision);
+
     res.status(200).json({
-      content: response,
-      timestamp: new Date().toISOString(),
-      model: modelType,
-      context: enhancedContext
+      content: response.content,
+      routing: routingDecision,
+      performance: response.performance,
+      model: response.model,
+      provider: response.provider
     });
-    
+
   } catch (error) {
     console.error('AI Orchestrator Error:', error);
-    res.status(500).json({ 
-      error: 'Failed to process AI request',
-      details: error.message 
+    
+    // Fallback to basic response
+    res.status(200).json({
+      content: generateFallbackResponse(req.body.message),
+      routing: { pattern: 'fallback', reason: 'api_error' },
+      performance: { responseTime: 0, cached: false },
+      model: 'fallback',
+      provider: 'system'
     });
   }
 }
 
-function buildEnhancedContext(context, workingMemory) {
-  const enhanced = {
-    ...context,
-    workingMemory: {
-      conversationCount: workingMemory?.conversations?.length || 0,
-      pageVisits: workingMemory?.pageContext ? Object.keys(workingMemory.pageContext).length : 0,
-      sessionActive: !!workingMemory?.sessionData,
-      recentTopics: extractRecentTopics(workingMemory?.conversations || [])
-    }
-  };
-
-  // Add page-specific context
-  if (context?.currentPage) {
-    enhanced.pageType = classifyPageType(context.currentPage);
-    enhanced.domainFocus = getDomainFocus(context.currentPage);
-  }
-
-  return enhanced;
-}
-
-function extractRecentTopics(conversations) {
-  if (!conversations || conversations.length === 0) return [];
+function determineRouting(message, context, preferredModel) {
+  // Check for available models
+  const availableModels = [];
   
-  const recentConversations = conversations.slice(-5);
-  const topics = new Set();
-  
-  recentConversations.forEach(conv => {
-    if (conv.content) {
-      const words = conv.content.toLowerCase().split(/\s+/);
-      const topicWords = words.filter(word => 
-        word.length > 4 && 
-        !['what', 'how', 'why', 'when', 'where', 'the', 'and', 'but', 'for'].includes(word)
-      );
-      topicWords.slice(0, 3).forEach(topic => topics.add(topic));
-    }
-  });
-  
-  return Array.from(topics).slice(0, 10);
-}
-
-function classifyPageType(pathname) {
-  const pageClassifications = {
-    '/weather': 'meteorological',
-    '/agriculture': 'agricultural',
-    '/geology': 'geological',
-    '/oceanoegraphy': 'oceanographic',
-    '/orbital': 'astronomical',
-    '/cosmology': 'cosmological',
-    '/': 'dashboard'
-  };
-  
-  for (const [path, type] of Object.entries(pageClassifications)) {
-    if (pathname.includes(path)) return type;
-  }
-  
-  return 'general';
-}
-
-function getDomainFocus(pathname) {
-  const domainMap = {
-    '/weather': ['meteorology', 'atmospheric_science', 'climatology'],
-    '/agriculture': ['agriculture', 'soil_science', 'crop_management'],
-    '/geology': ['geology', 'mineralogy', 'earth_science'],
-    '/oceanoegraphy': ['oceanography', 'marine_science', 'hydrology'],
-    '/orbital': ['astronomy', 'orbital_mechanics', 'space_science'],
-    '/cosmology': ['cosmology', 'astrophysics', 'astronomy']
-  };
-  
-  for (const [path, domains] of Object.entries(domainMap)) {
-    if (pathname.includes(path)) return domains;
-  }
-  
-  return ['general'];
-}
-
-async function routeToModel(message, context, preferredModel = 'anthropic') {
-  // Use environment variables for API keys
+  // Check API keys
   const anthropicKey = process.env.ANTHROPIC_API_KEY;
   const openaiKey = process.env.OPENAI_API_KEY;
+  const huggingfaceKey = process.env.HUGGINGFACE_API_KEY;
+  const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
   
-  // Build domain-aware system prompt
-  const systemPrompt = buildSystemPrompt(context);
+  if (anthropicKey && anthropicKey !== 'your_anthropic_api_key_here') {
+    availableModels.push('anthropic');
+  }
+  if (openaiKey && openaiKey !== 'your_openai_api_key_here') {
+    availableModels.push('openai');
+  }
+  if (huggingfaceKey && huggingfaceKey !== 'your_huggingface_api_key_here') {
+    availableModels.push('huggingface');
+  }
+  
+  // Check if Ollama is available
+  availableModels.push('ollama'); // Always try Ollama as fallback
+  
+  // Determine routing pattern
+  const messageLower = message.toLowerCase();
+  
+  // Domain-specific routing
+  if (messageLower.includes('weather') || messageLower.includes('climate') || messageLower.includes('temperature')) {
+    return {
+      pattern: 'router_based',
+      models: availableModels,
+      primaryModel: preferredModel || (availableModels.includes('anthropic') ? 'anthropic' : availableModels[0]),
+      domain: 'meteorology',
+      synthesis: false
+    };
+  }
+  
+  if (messageLower.includes('coordinate') || messageLower.includes('latitude') || messageLower.includes('longitude')) {
+    return {
+      pattern: 'router_based',
+      models: availableModels,
+      primaryModel: preferredModel || (availableModels.includes('anthropic') ? 'anthropic' : availableModels[0]),
+      domain: 'geography',
+      synthesis: false
+    };
+  }
+  
+  // Complex analysis requires multiple models
+  if (messageLower.includes('analyze') || messageLower.includes('compare') || messageLower.includes('relationship')) {
+    return {
+      pattern: 'mixture_of_experts',
+      models: availableModels.slice(0, 2), // Use top 2 available models
+      primaryModel: preferredModel || (availableModels.includes('anthropic') ? 'anthropic' : availableModels[0]),
+      synthesis: true
+    };
+  }
+  
+  // Default routing
+  return {
+    pattern: 'router_based',
+    models: availableModels,
+    primaryModel: preferredModel || (availableModels.includes('anthropic') ? 'anthropic' : availableModels[0]),
+    synthesis: false
+  };
+}
+
+async function routeToModel(message, context, routingDecision) {
+  const startTime = Date.now();
   
   try {
-    switch (preferredModel) {
-      case 'anthropic':
-        return await callAnthropicModel(message, systemPrompt, anthropicKey);
-      case 'openai':
-        return await callOpenAIModel(message, systemPrompt, openaiKey);
-      case 'huggingface':
-        return await callHuggingFaceModel(message, systemPrompt);
-      default:
-        // Fallback to best available model
-        if (anthropicKey) {
-          return await callAnthropicModel(message, systemPrompt, anthropicKey);
-        } else if (openaiKey) {
-          return await callOpenAIModel(message, systemPrompt, openaiKey);
-        } else {
-          return await callHuggingFaceModel(message, systemPrompt);
-        }
-    }
-  } catch (error) {
-    console.error(`Error with ${preferredModel} model:`, error);
+    const { primaryModel, models, pattern, synthesis } = routingDecision;
     
-    // Intelligent fallback based on Combine Harvester principles
-    if (preferredModel !== 'anthropic' && anthropicKey) {
-      return await callAnthropicModel(message, systemPrompt, anthropicKey);
-    } else if (preferredModel !== 'openai' && openaiKey) {
-      return await callOpenAIModel(message, systemPrompt, openaiKey);
-    } else {
+    // Build domain-aware system prompt
+    const systemPrompt = buildSystemPrompt(context, routingDecision.domain);
+    
+    let response;
+    
+    switch (pattern) {
+      case 'mixture_of_experts':
+        response = await callMultipleModels(message, systemPrompt, models);
+        break;
+      case 'router_based':
+      default:
+        response = await callSingleModel(message, systemPrompt, primaryModel);
+        break;
+    }
+    
+    return {
+      content: response.content,
+      model: response.model,
+      provider: response.provider,
+      performance: {
+        responseTime: Date.now() - startTime,
+        cached: false
+      }
+    };
+    
+  } catch (error) {
+    console.error(`Error in model routing:`, error);
+    
+    // Try fallback models
+    const fallbackModels = routingDecision.models.filter(m => m !== routingDecision.primaryModel);
+    
+    for (const fallbackModel of fallbackModels) {
+      try {
+        const systemPrompt = buildSystemPrompt(context, routingDecision.domain);
+        const response = await callSingleModel(message, systemPrompt, fallbackModel);
+        return {
+          content: response.content,
+          model: response.model,
+          provider: response.provider,
+          performance: {
+            responseTime: Date.now() - startTime,
+            cached: false
+          }
+        };
+      } catch (fallbackError) {
+        console.warn(`Fallback model ${fallbackModel} also failed:`, fallbackError);
+        continue;
+      }
+    }
+    
+    // If all models fail, return fallback response
+    throw new Error('All AI models failed');
+  }
+}
+
+async function callSingleModel(message, systemPrompt, model) {
+  switch (model) {
+    case 'anthropic':
+      return await callAnthropicModel(message, systemPrompt);
+    case 'openai':
+      return await callOpenAIModel(message, systemPrompt);
+    case 'huggingface':
       return await callHuggingFaceModel(message, systemPrompt);
+    case 'ollama':
+      return await callOllamaModel(message, systemPrompt);
+    default:
+      throw new Error(`Unknown model: ${model}`);
+  }
+}
+
+async function callMultipleModels(message, systemPrompt, models) {
+  const responses = await Promise.allSettled(
+    models.map(model => callSingleModel(message, systemPrompt, model))
+  );
+  
+  const successful = responses
+    .filter(r => r.status === 'fulfilled')
+    .map(r => r.value);
+  
+  if (successful.length === 0) {
+    throw new Error('All models failed in mixture of experts');
+  }
+  
+  // Simple synthesis - combine responses
+  const combined = successful.map(r => r.content).join('\n\n---\n\n');
+  
+  return {
+    content: combined,
+    model: successful.map(r => r.model).join(' + '),
+    provider: 'ensemble'
+  };
+}
+
+function buildSystemPrompt(context, domain) {
+  const basePrompt = `You are an expert AI assistant for the Buhera-West Environmental Intelligence Platform. 
+You provide accurate, helpful responses about weather, climate, geography, and environmental data.`;
+  
+  const domainPrompts = {
+    meteorology: `You specialize in weather and climate analysis. Provide detailed meteorological insights.`,
+    geography: `You specialize in geographical analysis and coordinate systems. Help with location-based queries.`,
+    agriculture: `You specialize in agricultural and environmental analysis for Southern African regions.`,
+    general: `You provide general assistance across all environmental and geographical topics.`
+  };
+  
+  const domainPrompt = domainPrompts[domain] || domainPrompts.general;
+  
+  let contextPrompt = '';
+  if (context) {
+    contextPrompt = `\nContext: User is currently on ${context.pageContext || 'the platform'}.`;
+    if (context.weatherData) {
+      contextPrompt += `\nCurrent weather data is available for analysis.`;
     }
   }
+  
+  return basePrompt + '\n' + domainPrompt + contextPrompt;
 }
 
-function buildSystemPrompt(context) {
-  let systemPrompt = `You are an advanced AI assistant specializing in environmental intelligence and data analysis. You have access to working memory and context about the user's current session.
-
-Current Context:
-- Page: ${context.currentPage || 'Unknown'}
-- Page Type: ${context.pageType || 'general'}
-- Domain Focus: ${context.domainFocus?.join(', ') || 'general'}
-- Session: ${context.workingMemory?.conversationCount || 0} messages, ${context.workingMemory?.pageVisits || 0} pages visited
-- Recent Topics: ${context.workingMemory?.recentTopics?.join(', ') || 'none'}
-
-Your capabilities include:
-- Weather and atmospheric analysis
-- Agricultural and soil science insights
-- Geological and mineralogical knowledge
-- Oceanographic and marine science
-- Environmental data interpretation
-- Spatial and temporal analysis
-
-Always provide accurate, contextually relevant responses. If you're unsure about something, say so. Use the working memory context to provide continuity in conversations.`;
-
-  // Add domain-specific enhancements
-  if (context.domainFocus) {
-    context.domainFocus.forEach(domain => {
-      switch (domain) {
-        case 'meteorology':
-          systemPrompt += `\n\nMeteorology Focus: Pay special attention to weather patterns, atmospheric conditions, forecasting accuracy, and climate analysis.`;
-          break;
-        case 'agriculture':
-          systemPrompt += `\n\nAgriculture Focus: Emphasize crop management, soil conditions, irrigation, and sustainable farming practices.`;
-          break;
-        case 'geology':
-          systemPrompt += `\n\nGeology Focus: Focus on geological structures, mineral composition, earth processes, and subsurface analysis.`;
-          break;
-        case 'oceanography':
-          systemPrompt += `\n\nOceanography Focus: Emphasize ocean currents, marine ecosystems, coastal processes, and water quality.`;
-          break;
-      }
-    });
-  }
-
-  return systemPrompt;
-}
-
-async function callAnthropicModel(message, systemPrompt, apiKey) {
-  if (!apiKey) {
+async function callAnthropicModel(message, systemPrompt) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  
+  if (!apiKey || apiKey === 'your_anthropic_api_key_here') {
     throw new Error('Anthropic API key not configured');
   }
 
@@ -221,11 +262,17 @@ async function callAnthropicModel(message, systemPrompt, apiKey) {
   }
 
   const data = await response.json();
-  return data.content[0].text;
+  return {
+    content: data.content[0].text,
+    model: 'claude-3-sonnet',
+    provider: 'anthropic'
+  };
 }
 
-async function callOpenAIModel(message, systemPrompt, apiKey) {
-  if (!apiKey) {
+async function callOpenAIModel(message, systemPrompt) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  
+  if (!apiKey || apiKey === 'your_openai_api_key_here') {
     throw new Error('OpenAI API key not configured');
   }
 
@@ -258,36 +305,103 @@ async function callOpenAIModel(message, systemPrompt, apiKey) {
   }
 
   const data = await response.json();
-  return data.choices[0].message.content;
+  return {
+    content: data.choices[0].message.content,
+    model: 'gpt-4',
+    provider: 'openai'
+  };
 }
 
 async function callHuggingFaceModel(message, systemPrompt) {
-  // Fallback to a simple response when no API keys are available
-  const contextAwareResponse = generateContextAwareResponse(message, systemPrompt);
-  return contextAwareResponse;
+  const apiKey = process.env.HUGGINGFACE_API_KEY;
+  
+  if (!apiKey || apiKey === 'your_huggingface_api_key_here') {
+    throw new Error('Hugging Face API key not configured');
+  }
+
+  const response = await fetch('https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      inputs: `${systemPrompt}\n\nUser: ${message}\nAssistant:`,
+      parameters: {
+        max_new_tokens: 500,
+        temperature: 0.7,
+        return_full_text: false
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Hugging Face API error: ${error}`);
+  }
+
+  const data = await response.json();
+  return {
+    content: data[0]?.generated_text || 'No response generated',
+    model: 'DialoGPT-medium',
+    provider: 'huggingface'
+  };
 }
 
-function generateContextAwareResponse(message, systemPrompt) {
-  // This is a fallback when no API keys are configured
-  // In a real implementation, you would call HuggingFace API here
+async function callOllamaModel(message, systemPrompt) {
+  const ollamaUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
+  const ollamaModel = process.env.OLLAMA_MODEL || 'llama3.1:8b';
   
-  const lowerMessage = message.toLowerCase();
+  try {
+    const response = await fetch(`${ollamaUrl}/api/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: ollamaModel,
+        prompt: `${systemPrompt}\n\nUser: ${message}\nAssistant:`,
+        stream: false,
+        options: {
+          temperature: 0.7,
+          top_p: 0.9,
+          max_tokens: 1000
+        }
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return {
+      content: data.response,
+      model: ollamaModel,
+      provider: 'ollama'
+    };
+  } catch (error) {
+    console.warn('Ollama not available, skipping:', error.message);
+    throw new Error('Ollama service not available');
+  }
+}
+
+function generateFallbackResponse(message) {
+  const fallbackResponses = {
+    weather: "I understand you're asking about weather. While I'm currently running in fallback mode without access to advanced AI models, I can provide general weather information. For more detailed and accurate responses, please ensure your API keys are properly configured in your environment variables.",
+    coordinate: "I understand your question about coordinates. While I'm currently running in fallback mode without access to advanced AI models, I can provide general information about coordinate systems. For more detailed and accurate responses, please ensure your API keys are properly configured in your environment variables.",
+    default: "I understand your question. While I'm currently running in fallback mode without access to advanced AI models, I can provide general information. For more detailed and accurate responses, please ensure your API keys are properly configured in your environment variables."
+  };
   
-  if (lowerMessage.includes('weather') || lowerMessage.includes('temperature') || lowerMessage.includes('forecast')) {
-    return `I understand you're asking about weather-related information. While I don't have access to real-time weather data in this fallback mode, I can explain that weather patterns are influenced by atmospheric pressure, temperature gradients, and moisture content. For accurate weather information, please ensure your API keys are configured.`;
+  const messageLower = message.toLowerCase();
+  
+  if (messageLower.includes('weather') || messageLower.includes('climate')) {
+    return fallbackResponses.weather;
   }
   
-  if (lowerMessage.includes('agriculture') || lowerMessage.includes('crop') || lowerMessage.includes('farming')) {
-    return `Your agricultural inquiry is noted. Agriculture depends on many factors including soil quality, climate conditions, water availability, and proper crop management. Modern precision agriculture uses data-driven approaches to optimize yields while maintaining sustainability.`;
+  if (messageLower.includes('coordinate') || messageLower.includes('latitude') || messageLower.includes('longitude')) {
+    return fallbackResponses.coordinate;
   }
   
-  if (lowerMessage.includes('geology') || lowerMessage.includes('rock') || lowerMessage.includes('mineral')) {
-    return `Geological questions require understanding of Earth's structure and processes. Geological formations tell stories of Earth's history through rock layers, mineral compositions, and structural features. Different geological processes create distinct patterns that can be analyzed for resource exploration and hazard assessment.`;
-  }
-  
-  if (lowerMessage.includes('ocean') || lowerMessage.includes('marine') || lowerMessage.includes('sea')) {
-    return `Ocean systems are complex, involving currents, temperature gradients, salinity variations, and marine ecosystems. Ocean currents like the Benguela and Agulhas currents around Southern Africa play crucial roles in regional climate and marine biodiversity.`;
-  }
-  
-  return `I understand your question about "${message}". While I'm currently running in fallback mode without access to advanced AI models, I can provide general information. For more detailed and accurate responses, please ensure your API keys are properly configured in your environment variables.`;
+  return fallbackResponses.default;
 } 

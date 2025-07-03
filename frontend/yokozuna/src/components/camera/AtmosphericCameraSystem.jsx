@@ -2,122 +2,68 @@ import React, { useCallback, useRef, useState, useEffect, useMemo } from 'react'
 import * as THREE from 'three';
 import { useThree, useFrame } from '@react-three/fiber';
 import { PerspectiveCamera, OrbitControls } from '@react-three/drei';
-import { CameraPresets, CameraPreset, getCameraPreset } from './CameraPresets';
+import { CameraPresets, getCameraPreset } from './CameraPresets.js';
 
-/**
- * Atmospheric sensing data for intelligent camera positioning
- */
-interface AtmosphericCameraData {
-  visibility: number; // 0-1, affects optimal viewing distance
-  stormIntensity: number; // 0-1, affects camera stability
-  windDirection: [number, number, number]; // For camera compensation
-  precipitationLevel: number; // 0-1, affects lens simulation
-  atmosphericDensity: number; // 0-1, affects depth of field
-  solarIntensity: number; // 0-1, affects exposure simulation
-}
-
-/**
- * Enhanced camera preset with atmospheric awareness
- */
-interface AtmosphericCameraPreset extends CameraPreset {
-  /** Optimal visibility range for this preset */
-  visibilityRange?: [number, number];
-  /** Whether this preset adapts to atmospheric conditions */
-  atmosphericAdaptive?: boolean;
-  /** Atmospheric stability requirements */
-  stabilityThreshold?: number;
-}
-
-/**
- * Props for the atmospheric camera system
- */
-export interface AtmosphericCameraSystemProps {
-  /** Current atmospheric sensing data */
-  atmosphericData?: AtmosphericCameraData;
-  /** Enable atmospheric intelligence for camera positioning */
-  enableAtmosphericIntelligence?: boolean;
-  /** Enable GPS differential camera positioning */
-  enableGPSPositioning?: boolean;
-  /** Target object to track */
-  target?: THREE.Object3D | null;
-  /** Initial camera preset */
-  initialPreset?: string;
-  /** Geographic coordinates for solar position calculation */
-  coordinates?: [number, number];
-  /** Time of day for solar-aware positioning */
-  timeOfDay?: number;
-  /** Callback when optimal viewing conditions are detected */
-  onOptimalViewing?: (preset: string, confidence: number) => void;
-  /** Enable hardware-controlled camera shake compensation */
-  enableStabilization?: boolean;
-  /** Enable solar reflectance optimized positioning */
-  enableSolarOptimization?: boolean;
-}
-
-/**
- * Enhanced camera presets with atmospheric awareness
- */
-const ATMOSPHERIC_CAMERA_PRESETS: Record<string, AtmosphericCameraPreset> = {
-  ...CameraPresets,
-  
-  // Enhanced presets for atmospheric conditions
-  ATMOSPHERIC_OVERVIEW: {
-    position: [0, 15, 15],
+// Predefined atmospheric camera presets optimized for different conditions
+const ATMOSPHERIC_CAMERA_PRESETS = {
+  CLEAR_DAY: {
+    position: [0, 5, 10],
     target: [0, 0, 0],
-    fov: 60,
-    transitionSpeed: 0.05,
-    tracking: false,
-    description: "High altitude view optimized for atmospheric observation",
-    visibilityRange: [0.7, 1.0],
-    atmosphericAdaptive: true,
-    stabilityThreshold: 0.3
-  },
-  
-  STORM_TRACKING: {
-    position: [20, 8, 20],
-    target: [0, 3, 0],
-    fov: 45,
-    transitionSpeed: 0.15,
-    tracking: true,
-    followDistance: 28.3,
-    description: "Storm-resistant positioning with enhanced stability",
-    visibilityRange: [0.2, 0.8],
-    atmosphericAdaptive: true,
-    stabilityThreshold: 0.1
-  },
-  
-  SOLAR_OPTIMIZED: {
-    position: [12, 4, 12],
-    target: [0, 2, 0],
-    fov: 40,
-    transitionSpeed: 0.08,
-    tracking: true,
-    followDistance: 17.0,
-    description: "Solar-angle optimized for Southern African conditions",
+    fov: 50,
+    near: 0.1,
+    far: 1000,
     visibilityRange: [0.8, 1.0],
     atmosphericAdaptive: true,
-    stabilityThreshold: 0.7
+    stabilityThreshold: 0.1,
+    transitionSpeed: 0.05
   },
-  
-  PRECIPITATION_CLOSE: {
-    position: [3, 2, 3],
-    target: [0, 1.5, 0],
+  OVERCAST: {
+    position: [0, 3, 8],
+    target: [0, 0, 0],
     fov: 55,
-    transitionSpeed: 0.12,
-    tracking: true,
-    followDistance: 4.2,
-    description: "Close-range view optimized for precipitation analysis",
+    near: 0.1,
+    far: 800,
+    visibilityRange: [0.4, 0.8],
+    atmosphericAdaptive: true,
+    stabilityThreshold: 0.2,
+    transitionSpeed: 0.03
+  },
+  STORMY: {
+    position: [0, 2, 6],
+    target: [0, 0, 0],
+    fov: 65,
+    near: 0.1,
+    far: 500,
+    visibilityRange: [0.1, 0.4],
+    atmosphericAdaptive: true,
+    stabilityThreshold: 0.5,
+    transitionSpeed: 0.02
+  },
+  NIGHT: {
+    position: [0, 4, 12],
+    target: [0, 0, 0],
+    fov: 45,
+    near: 0.1,
+    far: 1200,
     visibilityRange: [0.3, 0.9],
     atmosphericAdaptive: true,
-    stabilityThreshold: 0.2
+    stabilityThreshold: 0.1,
+    transitionSpeed: 0.04
+  },
+  PERSPECTIVE: {
+    position: [0, 5, 10],
+    target: [0, 0, 0],
+    fov: 50,
+    near: 0.1,
+    far: 1000,
+    visibilityRange: [0.5, 1.0],
+    atmosphericAdaptive: false,
+    stabilityThreshold: 0.1,
+    transitionSpeed: 0.05
   }
 };
 
-/**
- * Enhanced Atmospheric Camera System
- * Integrates camera control with atmospheric intelligence and GPS positioning
- */
-const AtmosphericCameraSystem: React.FC<AtmosphericCameraSystemProps> = ({
+const AtmosphericCameraSystem = ({
   atmosphericData,
   enableAtmosphericIntelligence = true,
   enableGPSPositioning = false,
@@ -129,52 +75,59 @@ const AtmosphericCameraSystem: React.FC<AtmosphericCameraSystemProps> = ({
   enableStabilization = true,
   enableSolarOptimization = true
 }) => {
-  const { camera, gl } = useThree();
-  const cameraRef = useRef<THREE.PerspectiveCamera>(null);
-  const orbitControlsRef = useRef<any>(null);
+  const { gl } = useThree();
+  const cameraRef = useRef();
+  const orbitControlsRef = useRef();
   
   // Camera state management
   const [cameraState, setCameraState] = useState({
     currentPreset: initialPreset,
-    adaptiveMode: enableAtmosphericIntelligence,
-    stabilizationActive: false,
-    solarCompensation: 0,
-    atmosphericConfidence: 0.5
+    atmosphericConfidence: 0.5,
+    isTransitioning: false,
+    lastOptimization: Date.now()
   });
   
-  // Camera shake compensation for atmospheric disturbances
-  const [shakeCompensation, setShakeCompensation] = useState({
-    enabled: enableStabilization,
-    intensity: 0,
-    frequency: 0,
-    dampening: 0.95
-  });
+  // OrbitControls settings
+  const {
+    enableZoom = true,
+    enablePan = true,
+    enableRotate = true,
+    autoRotate = false,
+    autoRotateSpeed = 0.5,
+    minDistance = 1,
+    maxDistance = 100,
+    minPolarAngle = 0,
+    maxPolarAngle = Math.PI,
+    minAzimuthAngle = -Infinity,
+    maxAzimuthAngle = Infinity
+  } = {};
   
-  // Calculate optimal camera preset based on atmospheric conditions
-  const calculateOptimalPreset = useCallback((data: AtmosphericCameraData): string => {
-    if (!enableAtmosphericIntelligence) return cameraState.currentPreset;
+  // Atmospheric analysis for optimal camera preset selection
+  const calculateOptimalPreset = useCallback((data) => {
+    if (!enableAtmosphericIntelligence || !data) return cameraState.currentPreset;
     
+    const { visibility, stormIntensity, precipitationLevel, solarIntensity } = data;
+    
+    // Calculate confidence based on atmospheric conditions
+    const visibilityScore = visibility * 0.4;
+    const stormScore = (1 - stormIntensity) * 0.3;
+    const precipScore = (1 - precipitationLevel) * 0.2;
+    const solarScore = solarIntensity * 0.1;
+    
+    const confidence = visibilityScore + stormScore + precipScore + solarScore;
+    
+    // Determine optimal preset
     let optimalPreset = 'PERSPECTIVE';
-    let confidence = 0.5;
     
-    // Visibility-based preset selection
-    if (data.visibility > 0.8 && data.stormIntensity < 0.3) {
-      optimalPreset = 'ATMOSPHERIC_OVERVIEW';
-      confidence = 0.9;
-    } else if (data.stormIntensity > 0.7) {
-      optimalPreset = 'STORM_TRACKING';
-      confidence = 0.85;
-    } else if (data.precipitationLevel > 0.6) {
-      optimalPreset = 'PRECIPITATION_CLOSE';
-      confidence = 0.8;
-    } else if (data.solarIntensity > 0.8 && enableSolarOptimization) {
-      optimalPreset = 'SOLAR_OPTIMIZED';
-      confidence = 0.88;
+    if (visibility > 0.8 && stormIntensity < 0.2) {
+      optimalPreset = 'CLEAR_DAY';
+    } else if (visibility > 0.4 && stormIntensity < 0.5) {
+      optimalPreset = 'OVERCAST';
+    } else if (stormIntensity > 0.5 || precipitationLevel > 0.7) {
+      optimalPreset = 'STORMY';
+    } else if (solarIntensity < 0.3) {
+      optimalPreset = 'NIGHT';
     }
-    
-    // Update confidence based on atmospheric stability
-    const stabilityFactor = 1 - data.stormIntensity;
-    confidence *= stabilityFactor;
     
     // Callback for optimal viewing conditions
     if (onOptimalViewing && confidence > 0.8) {
@@ -185,7 +138,7 @@ const AtmosphericCameraSystem: React.FC<AtmosphericCameraSystemProps> = ({
   }, [enableAtmosphericIntelligence, cameraState.currentPreset, enableSolarOptimization, onOptimalViewing]);
   
   // GPS-based camera positioning enhancement
-  const calculateGPSPosition = useCallback((basePosition: [number, number, number]): [number, number, number] => {
+  const calculateGPSPosition = useCallback((basePosition) => {
     if (!enableGPSPositioning || !atmosphericData) return basePosition;
     
     // Simulate GPS differential atmospheric sensing affecting camera position
@@ -229,7 +182,7 @@ const AtmosphericCameraSystem: React.FC<AtmosphericCameraSystemProps> = ({
   }, [enableSolarOptimization, timeOfDay, coordinates]);
   
   // Atmospheric stabilization system
-  const calculateStabilization = useCallback((data: AtmosphericCameraData) => {
+  const calculateStabilization = useCallback((data) => {
     if (!enableStabilization) return { x: 0, y: 0, z: 0 };
     
     // Calculate shake compensation based on atmospheric conditions
@@ -359,7 +312,17 @@ const AtmosphericCameraSystem: React.FC<AtmosphericCameraSystemProps> = ({
         domElement={gl.domElement}
         enableDamping
         dampingFactor={0.1}
-        enabled={!cameraState.adaptiveMode} // Disable manual controls during adaptive mode
+        enableZoom={enableZoom}
+        enablePan={enablePan}
+        enableRotate={enableRotate}
+        autoRotate={autoRotate}
+        autoRotateSpeed={autoRotateSpeed}
+        minDistance={minDistance}
+        maxDistance={maxDistance}
+        minPolarAngle={minPolarAngle}
+        maxPolarAngle={maxPolarAngle}
+        minAzimuthAngle={minAzimuthAngle}
+        maxAzimuthAngle={maxAzimuthAngle}
       />
     </>
   );
