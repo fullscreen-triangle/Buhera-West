@@ -1,5 +1,16 @@
-const OPENWEATHER_API_KEY = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || 'your_api_key_here';
-const MAPBOX_ACCESS_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || 'your_mapbox_token_here';
+// Try multiple possible environment variable names
+const OPENWEATHER_API_KEY = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY || 
+                           process.env.OPENWEATHER_API_KEY || 
+                           process.env.NEXT_PUBLIC_OPENWEATHER_KEY ||
+                           process.env.OPENWEATHER_KEY ||
+                           process.env.WEATHER_API_KEY ||
+                           'your_api_key_here';
+
+const MAPBOX_ACCESS_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || 
+                           process.env.MAPBOX_ACCESS_TOKEN || 
+                           process.env.NEXT_PUBLIC_MAPBOX_TOKEN ||
+                           process.env.MAPBOX_TOKEN ||
+                           'your_mapbox_token_here';
 
 class WeatherService {
   constructor() {
@@ -12,14 +23,35 @@ class WeatherService {
     this.hasValidApiKey = OPENWEATHER_API_KEY && 
                          OPENWEATHER_API_KEY !== 'your_api_key_here' && 
                          OPENWEATHER_API_KEY !== 'your_openweather_api_key_here' &&
+                         OPENWEATHER_API_KEY !== 'your_api_key_here' &&
                          OPENWEATHER_API_KEY.length > 10; // Basic validation
+    
+    // TEMPORARY: Let's see what environment variables are actually available
+    console.log('=== ENVIRONMENT VARIABLE DEBUG ===');
+    console.log('All env vars starting with WEATHER or MAPBOX:');
+    Object.keys(process.env).filter(key => 
+      key.toLowerCase().includes('weather') || 
+      key.toLowerCase().includes('mapbox') ||
+      key.toLowerCase().includes('openweather')
+    ).forEach(key => {
+      console.log(`  ${key}: ${process.env[key] ? process.env[key].substring(0, 10) + '...' : 'undefined'}`);
+    });
+    console.log('=== END DEBUG ===');
     
     if (!this.hasValidApiKey) {
       console.error('WeatherService: OpenWeather API key not configured properly!');
-      console.error('Current API key:', OPENWEATHER_API_KEY ? 'Set but invalid' : 'Not set');
-      console.error('Please check your .env.local file and ensure NEXT_PUBLIC_OPENWEATHER_API_KEY is set');
+      console.error('Raw API key value:', OPENWEATHER_API_KEY);
+      console.error('API key length:', OPENWEATHER_API_KEY ? OPENWEATHER_API_KEY.length : 'undefined');
+      console.error('API key starts with:', OPENWEATHER_API_KEY ? OPENWEATHER_API_KEY.substring(0, 10) + '...' : 'N/A');
+      console.error('Validation checks:');
+      console.error('  - Exists:', !!OPENWEATHER_API_KEY);
+      console.error('  - Not default 1:', OPENWEATHER_API_KEY !== 'your_api_key_here');
+      console.error('  - Not default 2:', OPENWEATHER_API_KEY !== 'your_openweather_api_key_here');
+      console.error('  - Length > 10:', OPENWEATHER_API_KEY && OPENWEATHER_API_KEY.length > 10);
     } else {
       console.log('WeatherService: OpenWeather API key configured successfully');
+      console.log('API key length:', OPENWEATHER_API_KEY.length);
+      console.log('API key starts with:', OPENWEATHER_API_KEY.substring(0, 10) + '...');
     }
   }
 
