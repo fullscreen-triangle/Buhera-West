@@ -6,9 +6,11 @@ import TransitionEffect from "@/components/TransitionEffect";
 import WeatherOverlay from '@/components/weather/WeatherOverlay';
 import WeatherDetails from '@/components/weather/WeatherDetails';
 import FadeTransition from '@/components/weather/FadeTransition';
+import TimeControls from '@/components/weather/TimeControls';
 import weatherService from '@/services/weatherService';
 import AIAssistant from '@/components/ai/AIAssistant';
 import { QuickExplain } from '@/components/ai/AITooltip';
+import GeocoderSearch from '@/components/location/GeocoderSearch';
 import dynamic from 'next/dynamic';
 
 
@@ -36,6 +38,15 @@ export default function Home() {
   const [topLocations, setTopLocations] = useState([]);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [appStarted, setAppStarted] = useState(false);
+
+  // Time controls state
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [isTimePlayback, setIsTimePlayback] = useState(false);
+  const [timeRange, setTimeRange] = useState('24h');
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [timeControlsEnabled, setTimeControlsEnabled] = useState(
+    process.env.NEXT_PUBLIC_ENABLE_TIME_CONTROLS === 'true'
+  );
 
   // Initialize the application
   useEffect(() => {
@@ -69,22 +80,92 @@ export default function Home() {
     initializeApp();
   }, []);
 
-  // Handle location search
-  const handleLocationSearch = async (query) => {
+  // Handle location search from Mapbox Geocoder (with autocomplete)
+  const handleLocationSelect = async (locationData) => {
     try {
+      console.log('Location selected from geocoder:', locationData);
+      
+      const { coordinates, placeName } = locationData;
+      const lat = coordinates.lat;
+      const lng = coordinates.lng;
+      
+      // Get weather data for the selected location
+      const weather = await weatherService.getCurrentWeather(lat, lng);
+      const forecast = await weatherService.getForecast(lat, lng);
+      
+      const location = {
+        lat: lat,
+        lng: lng,
+        name: placeName.split(',')[0], // Get the primary place name
+        country: weather.country || ''
+      };
+      
+      console.log('Weather data retrieved for location:', location);
+      
+      setFocusedLocation(location);
+      setSelectedWeatherData({
+        ...weather,
+        ...forecast,
+        displayName: placeName
+      });
+      
+      console.log('✅ Location search successful:', placeName);
+      
+    } catch (error) {
+      console.error('Failed to get weather for selected location:', error);
+      
+      // Show user-friendly error message
+      if (error.message.includes('API key')) {
+        alert('Weather service configuration issue. Please check your API keys.');
+      } else {
+        alert('Failed to get weather data for this location. Please try again.');
+      }
+    }
+  };
+
+  // Handle manual search input (for coordinates or fallback)
+  const handleManualSearch = async (query) => {
+    try {
+      console.log('Manual search for:', query);
+      
+      // This handles coordinate input that bypasses the geocoder
       const searchResult = await weatherService.searchWeather(query);
+      
       const location = {
         lat: searchResult.lat,
         lng: searchResult.lng,
-        name: searchResult.name,
-        country: searchResult.country
+        name: searchResult.name || 'Unknown Location',
+        country: searchResult.country || ''
       };
+      
+      console.log('Manual search result:', location);
       
       setFocusedLocation(location);
       setSelectedWeatherData(searchResult);
+      
+      if (searchResult.coordinateSearch) {
+        console.log('✅ Coordinate search successful:', searchResult.displayName);
+      }
+      
     } catch (error) {
-      console.error('Search failed:', error);
-      // You could add a toast notification here
+      console.error('Manual search failed:', error);
+      
+      if (error.message.includes('Invalid coordinates')) {
+        alert(`Invalid coordinates. Please use one of these formats:
+        
+• Latitude, Longitude: "-18.2436, 31.5781" (Google Maps style)
+• Longitude, Latitude: "31.5781, -18.2436" (Mapbox style)
+
+The system will automatically detect the format.
+
+Examples for Buhera West:
+• -18.2436, 31.5781 (lat, lng)
+• 31.5781, -18.2436 (lng, lat)`);
+      } else if (error.message.includes('API key')) {
+        alert('Weather service configuration issue. Please check your API keys.');
+      } else {
+        alert('Location not found. Try searching for a city name or coordinates.');
+      }
     }
   };
 
@@ -146,9 +227,26 @@ export default function Home() {
     }
   };
 
-  // Handle top location selection
-  const handleTopLocationSelect = async (location) => {
-    await handleLocationClick(location);
+  // Handle top location selection (now uses the same handler as geocoder)
+  // The WeatherOverlay component handles the format conversion
+
+  // Time control handlers
+  const handleTimeChange = (newTime) => {
+    setCurrentTime(newTime);
+    // TODO: Fetch historical weather data for the selected time
+    console.log('Time changed to:', newTime);
+  };
+
+  const handleTimePlayToggle = (isPlaying) => {
+    setIsTimePlayback(isPlaying);
+  };
+
+  const handleTimeRangeChange = (range) => {
+    setTimeRange(range);
+  };
+
+  const handleSpeedChange = (speed) => {
+    setPlaybackSpeed(speed);
   };
 
   // Filter weather data based on selected type
@@ -163,10 +261,10 @@ export default function Home() {
         <title>Buhera West - Global Weather Intelligence</title>
         <meta
           name="description"
-          content="Interactive global weather visualization platform. Real-time weather data, forecasting, and climate analysis powered by advanced weather intelligence systems."
+          content="Interactive global weather visualization platform. Real-time weather data, forecasting, and climate analysis powered by advanced weather intelligence systems. Supports coordinate search and temporal analysis."
         />
         <meta property="og:title" content="Buhera West - Global Weather Intelligence" />
-        <meta property="og:description" content="Explore real-time weather patterns across the globe with our interactive 3D weather visualization platform." />
+        <meta property="og:description" content="Explore real-time weather patterns across the globe with our interactive 3D weather visualization platform. Search by coordinates or location names." />
         <meta property="og:type" content="website" />
         <link rel="preconnect" href="https://api.openweathermap.org" />
       </Head>
@@ -205,16 +303,17 @@ export default function Home() {
           focusedLocation={focusedLocation}
           onLocationClick={handleLocationClick}
           isLoading={isLoading}
+          currentTime={currentTime}
         />
 
         {/* Overlay Panel (Right side - when no location selected) */}
         <WeatherOverlay
           show={appStarted && !focusedLocation}
-          onLocationSearch={handleLocationSearch}
+          onLocationSelect={handleLocationSelect}
+          onManualSearch={handleManualSearch}
           onWeatherTypeChange={handleWeatherTypeChange}
           selectedWeatherType={selectedWeatherType}
           topLocations={topLocations}
-          onLocationSelect={handleTopLocationSelect}
           lastUpdated={lastUpdated}
         />
 
@@ -224,12 +323,34 @@ export default function Home() {
           weatherData={selectedWeatherData}
           onBack={handleBackToGlobe}
           onRandomLocation={handleRandomLocation}
+          currentTime={currentTime}
         />
 
+        {/* Time Controls Panel (Left side - bottom) */}
+        {timeControlsEnabled && (
+          <div className="fixed bottom-4 left-4 z-30">
+            <TimeControls
+              currentTime={currentTime}
+              onTimeChange={handleTimeChange}
+              isPlaying={isTimePlayback}
+              onPlayToggle={handleTimePlayToggle}
+              timeRange={timeRange}
+              onTimeRangeChange={handleTimeRangeChange}
+              playbackSpeed={playbackSpeed}
+              onSpeedChange={handleSpeedChange}
+              enabled={timeControlsEnabled}
+              className="w-80"
+            />
+          </div>
+        )}
+
         {/* Footer Attribution */}
-        <div className="fixed bottom-4 left-4 text-white text-xs opacity-50 z-30">
+        <div className="fixed bottom-4 left-4 text-white text-xs opacity-50 z-30" style={{ 
+          marginBottom: timeControlsEnabled ? '320px' : '0px' 
+        }}>
           <div>Weather data: OpenWeatherMap</div>
           <div>Globe visualization: React Globe GL</div>
+          <div>Search: Mapbox Geocoder with smart coordinate detection</div>
         </div>
 
         {/* Performance Indicator */}
@@ -240,13 +361,33 @@ export default function Home() {
               dataValue={`${globalWeatherData.length} total, ${filteredWeatherData.length} visible`}
               dataContext={{ 
                 explanation: "Number of weather monitoring stations and visible data points on the globe",
-                weatherFilter: selectedWeatherType 
+                weatherFilter: selectedWeatherType,
+                timeControlsEnabled: timeControlsEnabled,
+                currentTime: currentTime.toISOString()
               }}
             >
               {globalWeatherData.length} locations • {filteredWeatherData.length} visible
             </QuickExplain>
+            {timeControlsEnabled && (
+              <div className="mt-1 text-gray-400">
+                Time: {currentTime.toLocaleString([], { 
+                  month: 'short', 
+                  day: 'numeric', 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                })}
+              </div>
+            )}
           </div>
         )}
+
+        {/* Smart Search Help */}
+        <div className="fixed top-4 right-4 text-white text-xs bg-black bg-opacity-50 px-3 py-2 rounded-lg z-30 max-w-xs">
+          <div className="font-semibold mb-1">🔍 Smart Search:</div>
+          <div>• Autocomplete: Start typing "Har..." → "Harare, Zimbabwe"</div>
+          <div>• Coordinates: "-18.2436, 31.5781" (any format)</div>
+          <div>• No format confusion - system auto-detects!</div>
+        </div>
 
         {/* AI Assistant */}
         <AIAssistant 
@@ -256,7 +397,10 @@ export default function Home() {
             selectedLocation: focusedLocation,
             selectedWeather: selectedWeatherData,
             weatherFilter: selectedWeatherType,
-            lastUpdated: lastUpdated
+            lastUpdated: lastUpdated,
+            currentTime: currentTime,
+            timeControlsEnabled: timeControlsEnabled,
+            coordinateSearchEnabled: true
           }}
           position="bottom-right"
         />

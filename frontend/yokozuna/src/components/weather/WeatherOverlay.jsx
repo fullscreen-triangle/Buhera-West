@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Search, Globe, Cloud, Sun, CloudRain, Snowflake } from 'lucide-react';
+import GeocoderSearch from '@/components/location/GeocoderSearch';
 
 const WEATHER_TYPES = [
   { key: 'all', label: 'All Weather', icon: Globe, color: '#64748b' },
@@ -11,54 +12,13 @@ const WEATHER_TYPES = [
 
 export default function WeatherOverlay({ 
   show, 
-  onLocationSearch, 
+  onLocationSelect,  // This now receives locationData from GeocoderSearch
+  onManualSearch,    // For coordinate input fallback
   onWeatherTypeChange,
   selectedWeatherType = 'all',
   topLocations = [],
-  onLocationSelect,
   lastUpdated 
 }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const searchTimeoutRef = useRef(null);
-
-  const handleSearch = async (query) => {
-    if (!query.trim()) return;
-    
-    setIsSearching(true);
-    try {
-      if (onLocationSearch) {
-        await onLocationSearch(query);
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleSearchInput = (e) => {
-    const query = e.target.value;
-    setSearchQuery(query);
-    
-    // Debounce search
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-    
-    searchTimeoutRef.current = setTimeout(() => {
-      if (query.length > 2) {
-        handleSearch(query);
-      }
-    }, 500);
-  };
-
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      handleSearch(searchQuery);
-    }
-  };
 
   const handleWeatherTypeClick = (weatherType) => {
     if (onWeatherTypeChange) {
@@ -66,9 +26,19 @@ export default function WeatherOverlay({
     }
   };
 
-  const handleLocationClick = (location) => {
+  const handleTopLocationClick = (location) => {
+    // Convert top location format to the expected locationData format
+    const locationData = {
+      coordinates: {
+        lat: location.lat,
+        lng: location.lng
+      },
+      placeName: `${location.name}, ${location.country || 'Unknown'}`,
+      fullResult: location
+    };
+    
     if (onLocationSelect) {
-      onLocationSelect(location);
+      onLocationSelect(locationData);
     }
   };
 
@@ -85,29 +55,22 @@ export default function WeatherOverlay({
           </p>
         </div>
 
-        {/* Search */}
+        {/* Search with Autocomplete */}
         <div className="space-y-3">
           <h3 className="text-lg font-semibold">Search Location</h3>
-          <form onSubmit={handleSearchSubmit} className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={handleSearchInput}
-              placeholder="Enter city, country, or coordinates..."
-              className="w-full bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 pr-10 text-white placeholder-gray-400 focus:outline-none focus:border-blue-400"
+          <div className="space-y-2">
+            <GeocoderSearch
+              onLocationSelect={onLocationSelect}
+              placeholder="Search for a location in Southern Africa..."
+              bbox={[10, -40, 55, 5]} // Broader Southern Africa region
+              proximity={[25, -25]} // Southern Africa center
+              className="w-full"
+              showLabels={false}
             />
-            <button 
-              type="submit"
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
-              disabled={isSearching}
-            >
-              {isSearching ? (
-                <div className="animate-spin w-5 h-5 border-2 border-gray-400 border-t-white rounded-full"></div>
-              ) : (
-                <Search size={20} />
-              )}
-            </button>
-          </form>
+            <div className="text-xs text-gray-400">
+              💡 Try: "Harare", "Cape Town", "-18.2436, 31.5781"
+            </div>
+          </div>
         </div>
 
         {/* Weather Type Filter */}
@@ -139,7 +102,7 @@ export default function WeatherOverlay({
               {topLocations.slice(0, 5).map((location, index) => (
                 <button
                   key={index}
-                  onClick={() => handleLocationClick(location)}
+                  onClick={() => handleTopLocationClick(location)}
                   className="w-full text-left p-3 bg-gray-800 hover:bg-gray-700 rounded-lg border border-gray-600 transition-colors"
                 >
                   <div className="flex justify-between items-center">
@@ -168,7 +131,8 @@ export default function WeatherOverlay({
         <div className="space-y-3">
           <h3 className="text-lg font-semibold">How to Use</h3>
           <div className="text-sm text-gray-300 space-y-2">
-            <p>• Search for any location to see detailed weather</p>
+            <p>• Type location names for autocomplete suggestions</p>
+            <p>• Paste coordinates in any format (lat,lng or lng,lat)</p>
             <p>• Click on weather markers on the globe</p>
             <p>• Filter by weather type to focus on specific conditions</p>
             <p>• Use mouse to rotate and zoom the globe</p>
