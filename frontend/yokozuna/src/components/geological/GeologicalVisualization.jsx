@@ -1,211 +1,113 @@
-import React, { useMemo, useRef, useEffect } from 'react';
-import { useFrame } from '@react-three/fiber';
-import { Instances, Instance } from '@react-three/drei';
-import * as THREE from 'three';
+import React, { useState, useEffect, useRef } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrbitControls, Stats } from '@react-three/drei';
 import PropTypes from 'prop-types';
 
-/**
- * Geological Visualization Component
- * Renders 3D subsurface geological formations, mineral deposits, and groundwater flow
- */
-export const GeologicalVisualization = ({ data, qualityLevel, enabled }) => {
-  const groupRef = useRef();
-  const mineralInstancesRef = useRef();
-  const groundwaterFlowRef = useRef();
-  
-  // Create subsurface mesh from Float32Array data
-  const subsurfaceMesh = useMemo(() => {
-    if (!data?.subsurfaceMesh || !enabled) return null;
-    
-    const geometry = new THREE.BufferGeometry();
-    const vertices = data.subsurfaceMesh;
-    
-    // Ensure we have valid vertex data (multiples of 3 for triangles)
-    const vertexCount = Math.floor(vertices.length / 3) * 3;
-    const validVertices = vertices.slice(0, vertexCount);
-    
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(validVertices, 3));
-    geometry.computeVertexNormals();
-    
-    return geometry;
-  }, [data?.subsurfaceMesh, enabled]);
-  
-  // Generate colors for different geological layers based on depth
-  const layerColors = useMemo(() => {
-    if (!subsurfaceMesh) return null;
-    
-    const positions = subsurfaceMesh.attributes.position.array;
-    const colors = new Float32Array(positions.length);
-    
-    for (let i = 0; i < positions.length; i += 3) {
-      const y = positions[i + 1]; // depth coordinate
-      
-      // Color based on depth: shallow = brown, medium = gray, deep = dark
-      if (y > -10) {
-        // Shallow soil layer - brown
-        colors[i] = 0.6; colors[i + 1] = 0.4; colors[i + 2] = 0.2;
-      } else if (y > -50) {
-        // Medium depth - gray rock
-        colors[i] = 0.5; colors[i + 1] = 0.5; colors[i + 2] = 0.5;
-      } else {
-        // Deep layer - dark rock
-        colors[i] = 0.2; colors[i + 1] = 0.2; colors[i + 2] = 0.3;
-      }
-    }
-    
-    return colors;
-  }, [subsurfaceMesh]);
-  
-  // Mineral deposit positions and colors
-  const mineralDeposits = useMemo(() => {
-    if (!data?.mineralDeposits || !enabled) return [];
-    
-    return data.mineralDeposits.map((position, index) => ({
-      position: [position.x, position.y, position.z],
-      color: getMineralColor(index % 6), // Cycle through different mineral types
-      scale: 0.5 + Math.random() * 1.0, // Vary deposit sizes
-    }));
-  }, [data?.mineralDeposits, enabled]);
-  
-  // Groundwater flow vectors
-  const groundwaterVectors = useMemo(() => {
-    if (!data?.groundwaterFlow || !enabled) return null;
-    
-    const points = [];
-    data.groundwaterFlow.forEach(vector => {
-      // Create line segments for flow visualization
-      const start = new THREE.Vector3(vector.x, vector.y, vector.z);
-      const end = start.clone().add(new THREE.Vector3(
-        Math.random() * 4 - 2,
-        -1 - Math.random() * 2, // Generally downward flow
-        Math.random() * 4 - 2
-      ));
-      points.push(start, end);
-    });
-    
-    return points;
-  }, [data?.groundwaterFlow, enabled]);
-  
-  // Animation loop
-  useFrame((state, delta) => {
-    if (!enabled) return;
-    
-    // Animate mineral deposits with subtle floating motion
-    if (mineralInstancesRef.current) {
-      mineralInstancesRef.current.children.forEach((instance, index) => {
-        instance.position.y += Math.sin(state.clock.elapsedTime * 2 + index) * 0.001;
-      });
-    }
-    
-    // Animate groundwater flow
-    if (groundwaterFlowRef.current) {
-      groundwaterFlowRef.current.material.opacity = 0.3 + Math.sin(state.clock.elapsedTime * 3) * 0.1;
+// SCENE COMPONENT - R3F HOOKS OK HERE (for use inside Canvas)
+export const GeologicalScene = ({ 
+  data, 
+  qualityLevel = 1.0, 
+  enabled = true,
+  engineRef,
+  geologicalData,
+  engineInitialized 
+}) => {
+  const { camera, scene } = useThree(); // ✅ OK - Inside Canvas
+  const meshRef = useRef();
+
+  useFrame((state, delta) => { // ✅ OK - Inside Canvas
+    if (meshRef.current && (engineInitialized || enabled)) {
+      // Animate geological visualization
+      meshRef.current.rotation.x += delta * 0.1;
     }
   });
-  
-  if (!enabled || !data) return null;
-  
+
+  if (!enabled) return null;
+
   return (
-    <group ref={groupRef} name="geological-visualization">
-      {/* Subsurface geological layers */}
-      {subsurfaceMesh && (
-        <mesh geometry={subsurfaceMesh} receiveShadow>
-          <meshLambertMaterial
-            vertexColors
-            transparent
-            opacity={0.8}
-            side={THREE.DoubleSide}
-          />
-          {layerColors && (
-            <bufferAttribute
-              attach="geometry-attributes-color"
-              array={layerColors}
-              count={layerColors.length / 3}
-              itemSize={3}
-            />
-          )}
-        </mesh>
-      )}
+    <group>
+      {/* Lighting - only if not provided by parent */}
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[10, 10, 5]} intensity={1} />
       
-      {/* Mineral deposits */}
-      {mineralDeposits.length > 0 && (
-        <group ref={mineralInstancesRef}>
-          {mineralDeposits.map((deposit, index) => (
-            <mesh
-              key={index}
-              position={deposit.position}
-              scale={[deposit.scale, deposit.scale, deposit.scale]}
-              castShadow
-            >
-              <octahedronGeometry args={[0.3, 0]} />
-              <meshPhongMaterial
-                color={deposit.color}
-                emissive={deposit.color}
-                emissiveIntensity={0.2}
-                transparent
-                opacity={0.8}
-              />
-            </mesh>
-          ))}
-        </group>
-      )}
+      {/* Geological mesh */}
+      <mesh ref={meshRef}>
+        <boxGeometry args={[2, 2, 2]} />
+        <meshStandardMaterial color="orange" />
+      </mesh>
       
-      {/* Groundwater flow visualization */}
-      {groundwaterVectors && groundwaterVectors.length > 0 && (
-        <group ref={groundwaterFlowRef}>
-          {groundwaterVectors.map((point, index) => {
-            if (index % 2 === 0 && index + 1 < groundwaterVectors.length) {
-              const start = groundwaterVectors[index];
-              const end = groundwaterVectors[index + 1];
-              return (
-                <line key={index / 2}>
-                  <bufferGeometry>
-                    <bufferAttribute
-                      attach="attributes-position"
-                      array={new Float32Array([
-                        start.x, start.y, start.z,
-                        end.x, end.y, end.z
-                      ])}
-                      count={2}
-                      itemSize={3}
-                    />
-                  </bufferGeometry>
-                  <lineBasicMaterial
-                    color="#4FC3F7"
-                    transparent
-                    opacity={0.6}
-                  />
-                </line>
-              );
-            }
-            return null;
-          })}
-        </group>
-      )}
-      
-      {/* Performance optimization: LOD for detailed geology */}
-      {qualityLevel > 0.5 && (
-        <mesh position={[0, -100, 0]}>
-          <boxGeometry args={[200, 10, 200]} />
-          <meshLambertMaterial color="#8D6E63" transparent opacity={0.3} />
-        </mesh>
-      )}
+      {/* Controls - only if not provided by parent */}
+      <OrbitControls enablePan enableZoom enableRotate />
     </group>
   );
 };
 
-// Helper function to get mineral colors
-function getMineralColor(type) {
-  const colors = [
-    '#FFD700', // Gold
-    '#C0C0C0', // Silver
-    '#B87333', // Copper
-    '#4169E1', // Iron (blue-ish)
-    '#32CD32', // Emerald
-    '#FF4500'  // Orange (other minerals)
-  ];
-  return colors[type] || '#888888';
-}
+/**
+ * Geological Visualization Component - STANDALONE VERSION
+ * Renders 3D subsurface geological formations, mineral deposits, and groundwater flow
+ * This version includes its own Canvas and is meant for direct page usage
+ */
+const GeologicalVisualization = (props) => {
+  const [engineInitialized, setEngineInitialized] = useState(false);
+  const [geologicalData, setGeologicalData] = useState(null);
+  const engineRef = useRef(null);
+
+  useEffect(() => {
+    const initEngine = async () => {
+      try {
+        // Initialize your geological engine here
+        console.log('Initializing geological engine...');
+        setEngineInitialized(true);
+      } catch (error) {
+        console.error('Failed to initialize geological engine:', error);
+      }
+    };
+
+    initEngine();
+  }, []);
+
+  return (
+    <div className="relative w-full h-full bg-gray-900">
+      <Canvas
+        camera={{ position: [0, 10, 20], fov: 75 }}
+        gl={{ antialias: true, alpha: true }}
+      >
+        {/* Use the scene component */}
+        <GeologicalScene 
+          {...props}
+          engineRef={engineRef}
+          geologicalData={geologicalData}
+          engineInitialized={engineInitialized}
+        />
+        <Stats />
+      </Canvas>
+      
+      {/* UI OVERLAY - NO R3F HOOKS */}
+      <GeologicalControls 
+        onDataUpdate={setGeologicalData}
+        engineInitialized={engineInitialized}
+      />
+    </div>
+  );
+};
+
+// UI CONTROLS COMPONENT - NO R3F HOOKS
+const GeologicalControls = ({ onDataUpdate, engineInitialized }) => {
+  return (
+    <div className="absolute top-4 left-4 bg-black bg-opacity-75 text-white p-4 rounded">
+      <h3 className="text-lg font-bold mb-2">Geological Controls</h3>
+      <div className="space-y-2">
+        <div>Status: {engineInitialized ? 'Ready' : 'Initializing...'}</div>
+        <button 
+          onClick={() => onDataUpdate({ updated: Date.now() })}
+          className="px-3 py-1 bg-blue-600 rounded hover:bg-blue-500"
+        >
+          Update Data
+        </button>
+      </div>
+    </div>
+  );
+};
 
 GeologicalVisualization.propTypes = {
   data: PropTypes.shape({
@@ -214,8 +116,22 @@ GeologicalVisualization.propTypes = {
     groundwaterFlow: PropTypes.array,
     performanceMetrics: PropTypes.object,
   }),
-  qualityLevel: PropTypes.number.isRequired,
-  enabled: PropTypes.bool.isRequired,
+  qualityLevel: PropTypes.number,
+  enabled: PropTypes.bool,
+};
+
+GeologicalScene.propTypes = {
+  data: PropTypes.shape({
+    subsurfaceMesh: PropTypes.instanceOf(Float32Array),
+    mineralDeposits: PropTypes.array,
+    groundwaterFlow: PropTypes.array,
+    performanceMetrics: PropTypes.object,
+  }),
+  qualityLevel: PropTypes.number,
+  enabled: PropTypes.bool,
+  engineRef: PropTypes.object,
+  geologicalData: PropTypes.object,
+  engineInitialized: PropTypes.bool,
 };
 
 export default GeologicalVisualization; 

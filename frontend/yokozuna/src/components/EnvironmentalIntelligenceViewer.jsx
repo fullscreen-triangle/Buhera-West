@@ -3,7 +3,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stats, Sky } from '@react-three/drei';
 import * as THREE from 'three';
 import PropTypes from 'prop-types';
-import { GeologicalVisualization } from './geological/GeologicalVisualization';
+import { GeologicalScene } from './geological/GeologicalVisualization';
 import { OceanicVisualization } from './ocean/OceanicVisualization';
 import { SolarVisualization } from './solar/SolarVisualization';
 import { AgriculturalVisualization } from './agricultural/AgriculturalVisualization';
@@ -181,7 +181,7 @@ export const EnvironmentalIntelligenceViewer = ({
         
         {/* Main Visualization Components */}
         {componentVisibility.geological && (
-          <GeologicalVisualization
+          <GeologicalScene
             data={geologicalData}
             qualityLevel={qualityLevel}
             enabled={componentVisibility.geological}

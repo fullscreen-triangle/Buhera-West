@@ -6,7 +6,7 @@ import * as THREE from 'three';
 // Import all our systems
 import { PathTracingDemo, RENDERING_MODES } from './pathtracing/PathTracingDemo';
 import { PathTracingOrchestrator } from './pathtracing/PathTracingOrchestrator';
-import { GeologicalVisualization } from './geological/GeologicalVisualization';
+import { GeologicalScene } from './geological/GeologicalVisualization';
 import { SolarVisualization } from './solar/SolarVisualization';
 import { AgriculturalVisualization } from './agricultural/AgriculturalVisualization';
 import { AtmosphericVisualization } from './atmospheric/AtmosphericVisualization';
@@ -427,7 +427,7 @@ const OverviewVisualization = ({ data, quality }) => (
       </div>
       <Canvas camera={{ position: [0, 50, 200] }} dpr={quality * 0.5}>
         <OrbitControls enableRotate={false} enableZoom={false} enablePan={false} />
-        <GeologicalVisualization data={data.geological} qualityLevel={quality * 0.5} enabled={true} />
+        <GeologicalScene data={data.geological} qualityLevel={quality * 0.5} enabled={true} />
       </Canvas>
     </div>
     
@@ -472,7 +472,7 @@ const OverviewVisualization = ({ data, quality }) => (
 function renderVisualizationForCategory(category, mode, data, quality) {
   switch (category) {
     case SHOWCASE_CATEGORIES.GEOLOGICAL:
-      return <GeologicalVisualization data={data.geological} qualityLevel={quality} enabled={true} />;
+      return <GeologicalScene data={data.geological} qualityLevel={quality} enabled={true} />;
     case SHOWCASE_CATEGORIES.ATMOSPHERIC:
       return <AtmosphericVisualization data={data.atmospheric} qualityLevel={quality} enabled={true} />;
     case SHOWCASE_CATEGORIES.AGRICULTURAL:
@@ -484,7 +484,7 @@ function renderVisualizationForCategory(category, mode, data, quality) {
     case SHOWCASE_CATEGORIES.INTEGRATION:
       return (
         <group>
-          <GeologicalVisualization data={data.geological} qualityLevel={quality * 0.7} enabled={true} />
+          <GeologicalScene data={data.geological} qualityLevel={quality * 0.7} enabled={true} />
           <AtmosphericVisualization data={data.atmospheric} qualityLevel={quality * 0.7} enabled={true} />
           <AgriculturalVisualization data={data.agricultural} qualityLevel={quality * 0.7} enabled={true} />
         </group>

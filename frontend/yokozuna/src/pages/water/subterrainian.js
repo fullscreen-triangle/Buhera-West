@@ -4,6 +4,9 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import Head from 'next/head';
 import dynamic from 'next/dynamic';
+import * as THREE from 'three';
+import { useFrame, useThree } from '@react-three/fiber';
+import { useTexture, shaderMaterial, extend } from '@react-three/drei';
 import TransitionEffect from '@/components/TransitionEffect';
 import { DEFAULT_COORDINATES } from '@/config/coordinates';
 import { useTime } from '../../contexts/TimeContext';
@@ -19,197 +22,107 @@ const OrbitControls = dynamic(() => import('@react-three/drei').then(mod => ({ d
   ssr: false
 });
 
-const useFrame = dynamic(() => import('@react-three/fiber').then(mod => ({ default: mod.useFrame })), {
-  ssr: false
-});
-
-const useThree = dynamic(() => import('@react-three/fiber').then(mod => ({ default: mod.useThree })), {
-  ssr: false
-});
-
-const shaderMaterial = dynamic(() => import('@react-three/drei').then(mod => ({ default: mod.shaderMaterial })), {
-  ssr: false
-});
-
-const useTexture = dynamic(() => import('@react-three/drei').then(mod => ({ default: mod.useTexture })), {
-  ssr: false
-});
-
-const extend = dynamic(() => import('@react-three/fiber').then(mod => ({ default: mod.extend })), {
-  ssr: false
-});
-
-/**
- * Subterranean Water Table 3D Visualization
- * 
- * Advanced 3D visualization of underground water systems at reference coordinates:
- * - Multi-layer geological structure with realistic aquifers
- * - Dynamic groundwater flow visualization with particle systems
- * - Water table level fluctuations over time
- * - Soil saturation mapping with volumetric rendering
- * - Underground infrastructure (wells, boreholes) representation
- * - Cross-sectional view of subsurface hydrology
- * 
- * Inspired by pathtracing components: TerrainRenderer, WaterRenderer, VolumetricRenderer
- */
-
-// Custom shader material for underground layers
-const UndergroundLayerMaterial = shaderMaterial(
-  {
-    uTime: 0,
-    uWaterLevel: 0,
-    uSoilMoisture: 0,
-    uLayerDepth: 0,
-    uLayerType: 0, // 0: topsoil, 1: clay, 2: sand, 3: bedrock
-    uSaturation: 0,
-    tNoiseTexture: null
-  },
-  // Vertex shader
-  `
-    varying vec3 vPosition;
-    varying vec3 vNormal;
-    varying vec2 vUv;
-    
-    void main() {
-      vPosition = position;
-      vNormal = normal;
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  // Fragment shader
-  `
-    uniform float uTime;
-    uniform float uWaterLevel;
-    uniform float uSoilMoisture;
-    uniform float uLayerDepth;
-    uniform int uLayerType;
-    uniform float uSaturation;
-    uniform sampler2D tNoiseTexture;
-    
-    varying vec3 vPosition;
-    varying vec3 vNormal;
-    varying vec2 vUv;
-    
-    vec3 getLayerColor(int layerType, float saturation, vec3 pos) {
-      vec3 baseColor;
-      
-      if (layerType == 0) { // Topsoil
-        baseColor = vec3(0.4, 0.2, 0.1); // Brown
-      } else if (layerType == 1) { // Clay
-        baseColor = vec3(0.6, 0.5, 0.3); // Clay color
-      } else if (layerType == 2) { // Sand/Gravel
-        baseColor = vec3(0.8, 0.7, 0.5); // Sandy color
-      } else { // Bedrock
-        baseColor = vec3(0.3, 0.3, 0.3); // Gray rock
-      }
-      
-      // Add moisture effect
-      float moisture = saturation * uSoilMoisture;
-      baseColor = mix(baseColor, baseColor * 0.5, moisture);
-      
-      // Add texture variation using noise
-      vec2 noiseUV = pos.xz * 0.01 + vec2(uTime * 0.1, 0.0);
-      float noise = texture2D(tNoiseTexture, noiseUV).r;
-      baseColor += (noise - 0.5) * 0.1;
-      
-      return baseColor;
-    }
-    
-    void main() {
-      vec3 layerColor = getLayerColor(uLayerType, uSaturation, vPosition);
-      
-      // Add depth-based darkening
-      float depthFactor = exp(-uLayerDepth * 0.01);
-      layerColor *= depthFactor;
-      
-      // Add some subtle lighting
-      vec3 lightDir = normalize(vec3(1.0, 1.0, 0.5));
-      float ndotl = max(0.0, dot(vNormal, lightDir));
-      layerColor *= (0.3 + 0.7 * ndotl);
-      
-      gl_FragColor = vec4(layerColor, 1.0);
-    }
-  `
-);
-
-// Water table shader material
-const WaterTableMaterial = shaderMaterial(
-  {
-    uTime: 0,
-    uFlowDirection: [1, 0],
-    uFlowSpeed: 0.5,
-    uTransparency: 0.6
-  },
-  // Vertex shader
-  `
-    varying vec3 vPosition;
-    varying vec2 vUv;
-    
-    void main() {
-      vPosition = position;
-      vUv = uv;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }
-  `,
-  // Fragment shader
-  `
-    uniform float uTime;
-    uniform vec2 uFlowDirection;
-    uniform float uFlowSpeed;
-    uniform float uTransparency;
-    
-    varying vec3 vPosition;
-    varying vec2 vUv;
-    
-    void main() {
-      // Animated water effect
-      vec2 flowUV = vUv + uFlowDirection * uTime * uFlowSpeed;
-      
-      // Simple wave pattern
-      float wave1 = sin(flowUV.x * 10.0 + uTime * 2.0) * 0.1;
-      float wave2 = cos(flowUV.y * 8.0 + uTime * 1.5) * 0.1;
-      float wavePattern = (wave1 + wave2) * 0.5 + 0.5;
-      
-      // Water color with flow visualization
-      vec3 waterColor = mix(vec3(0.0, 0.3, 0.6), vec3(0.2, 0.5, 0.8), wavePattern);
-      
-      gl_FragColor = vec4(waterColor, uTransparency);
-    }
-  `
-);
-
-// Extend Three.js with custom materials
-extend({ UndergroundLayerMaterial, WaterTableMaterial });
-
-// Groundwater flow particles
-const GroundwaterFlow = ({ count = 1000, waterLevel, flowDirection, flowSpeed }) => {
+// Underground layer visualization
+const UndergroundLayer = ({ depth, thickness, layerType, saturation, waterLevel, noiseTexture }) => {
   const meshRef = useRef();
-  const positions = useMemo(() => {
-    const positions = new Float32Array(count * 3);
-    for (let i = 0; i < count; i++) {
-      positions[i * 3] = (Math.random() - 0.5) * 200; // x
-      positions[i * 3 + 1] = waterLevel + (Math.random() - 0.5) * 10; // y around water level
-      positions[i * 3 + 2] = (Math.random() - 0.5) * 200; // z
-    }
-    return positions;
-  }, [count, waterLevel]);
+  
+  const material = useMemo(() => {
+    const layerColors = {
+      topsoil: new THREE.Color(0x8B4513),
+      clay: new THREE.Color(0xD2B48C),
+      sand: new THREE.Color(0xF4A460),
+      gravel: new THREE.Color(0x808080),
+      bedrock: new THREE.Color(0x2F4F4F)
+    };
+    
+    return new THREE.MeshStandardMaterial({
+      color: layerColors[layerType] || layerColors.sand,
+      transparent: true,
+      opacity: 0.6 + saturation * 0.4,
+      roughness: 0.8,
+      metalness: 0.1
+    });
+  }, [layerType, saturation]);
 
+  const geometry = useMemo(() => {
+    const geo = new THREE.BoxGeometry(180, thickness, 180);
+    return geo;
+  }, [thickness]);
+
+  return (
+    <mesh
+      ref={meshRef}
+      geometry={geometry}
+      material={material}
+      position={[0, -depth - thickness/2, 0]}
+    />
+  );
+};
+
+// Water table visualization
+const WaterTable = ({ level, flowDirection, flowSpeed }) => {
+  const meshRef = useRef();
+  
   useFrame((state) => {
     if (meshRef.current) {
-      const time = state.clock.elapsedTime;
+      meshRef.current.position.y = level + Math.sin(state.clock.elapsedTime * 0.5) * 0.2;
+      meshRef.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.3) * 0.05;
+    }
+  });
+
+  const material = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      color: 0x4682B4,
+      transparent: true,
+      opacity: 0.7,
+      roughness: 0.1,
+      metalness: 0.8
+    });
+  }, []);
+
+  return (
+    <mesh ref={meshRef} rotation={[-Math.PI / 2, 0, 0]}>
+      <planeGeometry args={[160, 160, 32, 32]} />
+      <primitive object={material} />
+    </mesh>
+  );
+};
+
+// Groundwater flow particles
+const GroundwaterFlow = ({ count, waterLevel, flowDirection, flowSpeed }) => {
+  const meshRef = useRef();
+  const particles = useMemo(() => {
+    const positions = new Float32Array(count * 3);
+    const velocities = new Float32Array(count * 3);
+    
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      positions[i3] = (Math.random() - 0.5) * 150;
+      positions[i3 + 1] = waterLevel + (Math.random() - 0.5) * 10;
+      positions[i3 + 2] = (Math.random() - 0.5) * 150;
+      
+      velocities[i3] = Math.cos(flowDirection) * flowSpeed * (0.5 + Math.random() * 0.5);
+      velocities[i3 + 1] = 0;
+      velocities[i3 + 2] = Math.sin(flowDirection) * flowSpeed * (0.5 + Math.random() * 0.5);
+    }
+    
+    return { positions, velocities };
+  }, [count, waterLevel, flowDirection, flowSpeed]);
+
+  useFrame((state, delta) => {
+    if (meshRef.current) {
       const positions = meshRef.current.geometry.attributes.position.array;
       
       for (let i = 0; i < count; i++) {
-        // Animate particles along flow direction
-        positions[i * 3] += flowDirection[0] * flowSpeed * 0.1;
-        positions[i * 3 + 2] += flowDirection[1] * flowSpeed * 0.1;
+        const i3 = i * 3;
+        positions[i3] += particles.velocities[i3] * delta;
+        positions[i3 + 2] += particles.velocities[i3 + 2] * delta;
         
         // Reset particles that flow out of bounds
-        if (positions[i * 3] > 100) positions[i * 3] = -100;
-        if (positions[i * 3] < -100) positions[i * 3] = 100;
-        if (positions[i * 3 + 2] > 100) positions[i * 3 + 2] = -100;
-        if (positions[i * 3 + 2] < -100) positions[i * 3 + 2] = 100;
+        if (Math.abs(positions[i3]) > 75 || Math.abs(positions[i3 + 2]) > 75) {
+          positions[i3] = (Math.random() - 0.5) * 150;
+          positions[i3 + 2] = (Math.random() - 0.5) * 150;
+        }
       }
       
       meshRef.current.geometry.attributes.position.needsUpdate = true;
@@ -221,81 +134,37 @@ const GroundwaterFlow = ({ count = 1000, waterLevel, flowDirection, flowSpeed })
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
-          count={positions.length / 3}
-          array={positions}
+          count={count}
+          array={particles.positions}
           itemSize={3}
         />
       </bufferGeometry>
-      <pointsMaterial size={0.5} color="#40E0D0" transparent opacity={0.8} />
+      <pointsMaterial size={0.5} color={0x00CED1} transparent opacity={0.8} />
     </points>
   );
 };
 
-// Underground layer component
-const UndergroundLayer = ({ depth, thickness, layerType, saturation, waterLevel, noiseTexture }) => {
-  const meshRef = useRef();
-  
-  useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.material.uniforms.uTime.value = state.clock.elapsedTime;
-      meshRef.current.material.uniforms.uWaterLevel.value = waterLevel;
-      meshRef.current.material.uniforms.uLayerDepth.value = depth;
-      meshRef.current.material.uniforms.uLayerType.value = layerType;
-      meshRef.current.material.uniforms.uSaturation.value = saturation;
-    }
-  });
+// Well/borehole visualization
+const Well = ({ position, depth }) => {
+  const material = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      color: 0x654321,
+      roughness: 0.9,
+      metalness: 0.1
+    });
+  }, []);
 
-  return (
-    <mesh ref={meshRef} position={[0, -depth - thickness/2, 0]}>
-      <boxGeometry args={[200, thickness, 200]} />
-      <undergroundLayerMaterial 
-        uSoilMoisture={0.8}
-        tNoiseTexture={noiseTexture}
-      />
-    </mesh>
-  );
-};
-
-// Water table layer
-const WaterTable = ({ level, flowDirection, flowSpeed }) => {
-  const meshRef = useRef();
-  
-  useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.material.uniforms.uTime.value = state.clock.elapsedTime;
-      meshRef.current.material.uniforms.uFlowDirection.value = flowDirection;
-      meshRef.current.material.uniforms.uFlowSpeed.value = flowSpeed;
-    }
-  });
-
-  return (
-    <mesh ref={meshRef} position={[0, level, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[200, 200, 64, 64]} />
-      <waterTableMaterial transparent />
-    </mesh>
-  );
-};
-
-// Well/Borehole component
-const Well = ({ position, depth, diameter = 1 }) => {
   return (
     <group position={position}>
       {/* Well casing */}
       <mesh position={[0, -depth/2, 0]}>
-        <cylinderGeometry args={[diameter, diameter, depth, 8]} />
-        <meshStandardMaterial color="#666666" transparent opacity={0.8} />
+        <cylinderGeometry args={[0.5, 0.5, depth, 8]} />
+        <primitive object={material} />
       </mesh>
-      
-      {/* Well head */}
-      <mesh position={[0, 2, 0]}>
-        <cylinderGeometry args={[diameter * 1.5, diameter * 1.5, 2, 8]} />
-        <meshStandardMaterial color="#444444" />
-      </mesh>
-      
-      {/* Water level indicator in well */}
-      <mesh position={[0, -depth * 0.3, 0]}>
-        <cylinderGeometry args={[diameter * 0.8, diameter * 0.8, 1, 8]} />
-        <meshStandardMaterial color="#40E0D0" transparent opacity={0.9} />
+      {/* Surface marker */}
+      <mesh position={[0, 1, 0]}>
+        <cylinderGeometry args={[1, 1, 2, 8]} />
+        <meshStandardMaterial color={0x8B4513} />
       </mesh>
     </group>
   );
@@ -366,143 +235,48 @@ const SubterraneanScene = ({ waterLevel, flowDirection, flowSpeed, layerData }) 
   );
 };
 
-// Main page component
 const SubterranianWaterTable = () => {
+  const { currentTime } = useTime();
   const [waterLevel, setWaterLevel] = useState(-15);
-  const [flowDirection, setFlowDirection] = useState([0.5, 0.3]);
+  const [flowDirection, setFlowDirection] = useState(Math.PI / 4);
   const [flowSpeed, setFlowSpeed] = useState(0.5);
-  const [viewMode, setViewMode] = useState('cutaway'); // 'cutaway' | 'cross-section' | 'layers'
+  const [showControls, setShowControls] = useState(true);
 
-  // Time controls integration
-  const { setShowTimeControls, setScene, currentTime } = useTime();
-  const { getDayNightCycle, getSeasonalCycle } = useSceneTime();
+  // Simulate dynamic geological layers
+  const [layerData] = useState([
+    { depth: 0, thickness: 5, type: 'topsoil', saturation: 0.3 },
+    { depth: 5, thickness: 8, type: 'clay', saturation: 0.7 },
+    { depth: 13, thickness: 12, type: 'sand', saturation: 0.9 },
+    { depth: 25, thickness: 15, type: 'gravel', saturation: 0.6 },
+    { depth: 40, thickness: 20, type: 'bedrock', saturation: 0.1 }
+  ]);
 
+  // Simulate seasonal water level changes
   useEffect(() => {
-    setShowTimeControls(true);
-    setScene('agriculture'); // Use yearly cycle for seasonal water table changes
-    
-    return () => {
-      // Keep controls visible
-    };
-  }, [setShowTimeControls, setScene]);
-
-  // Dynamic water level based on seasonal cycle
-  useEffect(() => {
-    const seasonalVariation = getSeasonalCycle() * 8; // 8m seasonal variation
-    const dailyVariation = Math.sin(getDayNightCycle() * Math.PI) * 2; // 2m daily variation
-    setWaterLevel(-15 + seasonalVariation + dailyVariation);
-  }, [getSeasonalCycle, getDayNightCycle]);
-
-  // Geological layer configuration
-  const layerData = useMemo(() => [
-    { depth: 0, thickness: 5, type: 0, saturation: 0.3 }, // Topsoil
-    { depth: 5, thickness: 8, type: 1, saturation: 0.6 }, // Clay layer
-    { depth: 13, thickness: 15, type: 2, saturation: 0.9 }, // Sand/gravel aquifer
-    { depth: 28, thickness: 12, type: 1, saturation: 0.4 }, // Clay layer
-    { depth: 40, thickness: 20, type: 2, saturation: 0.95 }, // Deep aquifer
-    { depth: 60, thickness: 40, type: 3, saturation: 0.1 }, // Bedrock
-  ], []);
-
-  // Calculate subsurface statistics
-  const subsurfaceStats = useMemo(() => ({
-    averageSaturation: layerData.reduce((sum, layer) => sum + layer.saturation, 0) / layerData.length,
-    aquiferDepth: layerData.find(layer => layer.type === 2)?.depth || 0,
-    bedrockDepth: layerData.find(layer => layer.type === 3)?.depth || 0,
-    totalWaterVolume: layerData.reduce((sum, layer) => 
-      sum + (layer.thickness * 200 * 200 * layer.saturation * 0.001), 0) // m³
-  }), [layerData]);
+    const timeOfYear = (currentTime / (1000 * 86400 * 365)) % 1;
+    const seasonalVariation = Math.sin(timeOfYear * Math.PI * 2) * 5;
+    setWaterLevel(-15 + seasonalVariation);
+  }, [currentTime]);
 
   return (
     <>
       <Head>
-        <title>Subterranean Water Table | 3D Groundwater Visualization</title>
-        <meta 
-          name="description" 
-          content="Advanced 3D visualization of subterranean water table and aquifer systems at reference coordinates with real-time groundwater flow analysis" 
-        />
+        <title>Subterranean Water Table Analysis | Buhera-West Environmental Intelligence</title>
+        <meta name="description" content="3D visualization and analysis of groundwater systems, geological layers, and water table dynamics in the Buhera-West region." />
       </Head>
-      
       <TransitionEffect />
       
-      <main className="w-full min-h-screen bg-gradient-to-b from-amber-900 via-orange-900 to-black">
+      <main className="min-h-screen bg-gradient-to-br from-green-900 via-blue-900 to-purple-900 text-white">
         <div className="container mx-auto px-4 py-8">
           {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl md:text-6xl font-bold text-white mb-6">
-              Subterranean Water Table
+          <div className="text-center mb-12">
+            <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+              Subterranean Water Table Analysis
             </h1>
-            <p className="text-lg md:text-xl text-gray-300 max-w-4xl mx-auto mb-4">
-              Advanced 3D visualization of underground water systems showing geological layers, 
-              aquifer dynamics, and groundwater flow patterns at the reference coordinate point.
+            <p className="text-xl text-gray-300 max-w-4xl mx-auto">
+              Advanced 3D visualization of groundwater systems, geological layers, and water table dynamics 
+              using environmental intelligence and hydrogeological modeling.
             </p>
-            <div className="text-sm text-gray-400">
-              <strong>Location:</strong> {DEFAULT_COORDINATES.lat.toFixed(6)}°, {DEFAULT_COORDINATES.lng.toFixed(6)}° • 
-              <strong>Water Level:</strong> {waterLevel.toFixed(1)}m • 
-              <strong>Season:</strong> {getSeasonalCycle() > 0.75 ? 'Winter' : getSeasonalCycle() > 0.5 ? 'Autumn' : getSeasonalCycle() > 0.25 ? 'Summer' : 'Spring'}
-            </div>
-          </div>
-
-          {/* Real-time Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-              <div className="text-sm text-gray-300 mb-2">Water Table Level</div>
-              <div className="text-3xl font-bold text-blue-400">{waterLevel.toFixed(1)}m</div>
-              <div className="text-xs text-gray-400">below surface</div>
-            </div>
-            
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-              <div className="text-sm text-gray-300 mb-2">Avg Saturation</div>
-              <div className="text-3xl font-bold text-cyan-400">{(subsurfaceStats.averageSaturation * 100).toFixed(0)}%</div>
-              <div className="text-xs text-gray-400">soil moisture</div>
-            </div>
-            
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-              <div className="text-sm text-gray-300 mb-2">Aquifer Volume</div>
-              <div className="text-3xl font-bold text-teal-400">{subsurfaceStats.totalWaterVolume.toFixed(0)}k</div>
-              <div className="text-xs text-gray-400">cubic meters</div>
-            </div>
-            
-            <div className="bg-white/10 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-              <div className="text-sm text-gray-300 mb-2">Flow Rate</div>
-              <div className="text-3xl font-bold text-emerald-400">{(flowSpeed * 10).toFixed(1)}</div>
-              <div className="text-xs text-gray-400">m/day</div>
-            </div>
-          </div>
-
-          {/* Controls */}
-          <div className="flex justify-center gap-4 mb-8">
-            <div className="bg-black/30 backdrop-blur-lg rounded-lg p-2 border border-white/20">
-              <button
-                onClick={() => setViewMode('cutaway')}
-                className={`px-4 py-2 rounded-lg transition-all text-sm ${
-                  viewMode === 'cutaway'
-                    ? 'bg-amber-500 text-white'
-                    : 'text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                🔍 Cutaway View
-              </button>
-              <button
-                onClick={() => setViewMode('cross-section')}
-                className={`px-4 py-2 rounded-lg transition-all text-sm ${
-                  viewMode === 'cross-section'
-                    ? 'bg-orange-500 text-white'
-                    : 'text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                📏 Cross Section
-              </button>
-              <button
-                onClick={() => setViewMode('layers')}
-                className={`px-4 py-2 rounded-lg transition-all text-sm ${
-                  viewMode === 'layers'
-                    ? 'bg-yellow-500 text-white'
-                    : 'text-gray-300 hover:bg-white/10'
-                }`}
-              >
-                🏔️ Layer Analysis
-              </button>
-            </div>
           </div>
 
           {/* 3D Visualization */}
@@ -537,80 +311,112 @@ const SubterranianWaterTable = () => {
             </div>
           </div>
 
-          {/* Geological Layer Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-white/5 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-              <h3 className="text-xl font-semibold text-white mb-4">Geological Layers</h3>
-              <div className="space-y-3">
-                {layerData.map((layer, index) => {
-                  const layerNames = ['Topsoil', 'Clay', 'Sand/Gravel', 'Bedrock'];
-                  const layerColors = ['#8B4513', '#DAA520', '#F4A460', '#696969'];
+          {/* Controls and Information */}
+          {showControls && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+              {/* Water Table Controls */}
+              <div className="bg-black/20 backdrop-blur-lg rounded-xl border border-white/20 p-6">
+                <h3 className="text-xl font-bold mb-4">Water Table Parameters</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Water Level: {waterLevel.toFixed(1)}m below surface
+                    </label>
+                    <input
+                      type="range"
+                      min="-30"
+                      max="-5"
+                      step="0.5"
+                      value={waterLevel}
+                      onChange={(e) => setWaterLevel(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
                   
-                  return (
-                    <div key={index} className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div 
-                          className="w-4 h-4 rounded" 
-                          style={{ backgroundColor: layerColors[layer.type] }}
-                        />
-                        <span className="text-white font-medium">{layerNames[layer.type]}</span>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Flow Direction: {(flowDirection * 180 / Math.PI).toFixed(0)}°
+                    </label>
+                    <input
+                      type="range"
+                      min="0"
+                      max={Math.PI * 2}
+                      step="0.1"
+                      value={flowDirection}
+                      onChange={(e) => setFlowDirection(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Flow Speed: {flowSpeed.toFixed(2)} m/day
+                    </label>
+                    <input
+                      type="range"
+                      min="0.1"
+                      max="2.0"
+                      step="0.1"
+                      value={flowSpeed}
+                      onChange={(e) => setFlowSpeed(parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Geological Information */}
+              <div className="bg-black/20 backdrop-blur-lg rounded-xl border border-white/20 p-6">
+                <h3 className="text-xl font-bold mb-4">Geological Layers</h3>
+                <div className="space-y-3">
+                  {layerData.map((layer, index) => (
+                    <div key={index} className="flex justify-between items-center p-3 bg-white/10 rounded">
+                      <div>
+                        <div className="font-medium capitalize">{layer.type}</div>
+                        <div className="text-sm text-gray-300">
+                          {layer.depth}m - {layer.depth + layer.thickness}m depth
+                        </div>
                       </div>
-                      <div className="text-right text-sm text-gray-300">
-                        <div>{layer.depth}m - {layer.depth + layer.thickness}m</div>
-                        <div>Saturation: {(layer.saturation * 100).toFixed(0)}%</div>
+                      <div className="text-right">
+                        <div className="text-sm font-medium">
+                          {(layer.saturation * 100).toFixed(0)}% saturated
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {layer.thickness}m thick
+                        </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="bg-white/5 backdrop-blur-lg rounded-xl p-6 border border-white/20">
-              <h3 className="text-xl font-semibold text-white mb-4">Hydrogeological Data</h3>
-              <div className="space-y-4 text-sm text-gray-300">
-                <div className="flex justify-between">
-                  <span>Primary Aquifer Depth:</span>
-                  <span className="text-cyan-400">{subsurfaceStats.aquiferDepth}m</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Bedrock Depth:</span>
-                  <span className="text-gray-400">{subsurfaceStats.bedrockDepth}m</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Flow Direction:</span>
-                  <span className="text-blue-400">
-                    {Math.atan2(flowDirection[1], flowDirection[0]) * 180 / Math.PI > 0 ? 'NE' : 'SE'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Hydraulic Conductivity:</span>
-                  <span className="text-green-400">2.3 × 10⁻⁴ m/s</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Porosity (Average):</span>
-                  <span className="text-yellow-400">
-                    {(subsurfaceStats.averageSaturation * 0.4).toFixed(1)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Recharge Rate:</span>
-                  <span className="text-emerald-400">
-                    {(getSeasonalCycle() * 150 + 50).toFixed(0)} mm/year
-                  </span>
+                  ))}
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
-          {/* Timeline Integration Notice */}
-          <div className="mt-8 text-center">
-            <div className="bg-amber-500/20 border border-amber-400/30 rounded-lg p-6 inline-block max-w-3xl">
-              <h3 className="text-lg font-semibold text-amber-200 mb-2">Temporal Hydrology</h3>
-              <p className="text-amber-100 text-sm">
-                The water table visualization is synchronized with the global timeline system showing seasonal and daily variations. 
-                Spring shows highest water levels due to snow melt and rainfall, while late summer shows the lowest levels. 
-                Use the timeline controls to observe long-term groundwater trends and aquifer recharge patterns.
-              </p>
+          {/* Environmental Intelligence Integration */}
+          <div className="bg-black/20 backdrop-blur-lg rounded-xl border border-white/20 p-6">
+            <h3 className="text-xl font-bold mb-4">Hydrogeological Intelligence</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="text-center">
+                <div className="text-3xl mb-2">💧</div>
+                <h4 className="font-semibold mb-2">Water Quality Monitoring</h4>
+                <p className="text-sm text-gray-300">
+                  Real-time analysis of groundwater chemistry and contamination levels
+                </p>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl mb-2">📊</div>
+                <h4 className="font-semibold mb-2">Flow Modeling</h4>
+                <p className="text-sm text-gray-300">
+                  Advanced computational fluid dynamics for groundwater movement prediction
+                </p>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl mb-2">🌡️</div>
+                <h4 className="font-semibold mb-2">Temperature Profiling</h4>
+                <p className="text-sm text-gray-300">
+                  Subsurface temperature monitoring for geothermal analysis
+                </p>
+              </div>
             </div>
           </div>
         </div>

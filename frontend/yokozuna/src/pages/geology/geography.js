@@ -118,7 +118,6 @@ const GeographyPage = () => {
                       showSatellite={mapMode === 'satellite'}
                       showTopographic={mapMode === 'topographic'}
                       showElevation={mapMode === 'elevation'}
-                      className="w-full h-full"
                     />
                   </div>
                 </div>

@@ -1,20 +1,18 @@
 import React, { useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Stats } from '@react-three/drei';
 import PropTypes from 'prop-types';
 
 /**
- * Performance Monitor Component
+ * Performance Monitor Component - Parent (NO R3F HOOKS)
  * Tracks FPS, memory usage, render times, and provides adaptive quality control
  */
-export const PerformanceMonitor = forwardRef(({ 
+const PerformanceMonitor = forwardRef(({ 
   targetFPS = 60, 
   onPerformanceUpdate,
   enableAdaptiveQuality = true,
   debugMode = false 
 }, ref) => {
-  const { gl, scene } = useThree();
-  
-  // Performance tracking state
   const [performanceMetrics, setPerformanceMetrics] = useState({
     fps: 60,
     frameTime: 16.67,
@@ -24,6 +22,45 @@ export const PerformanceMonitor = forwardRef(({
     drawCalls: 0,
     qualityLevel: 1.0
   });
+
+  return (
+    <div className="absolute top-4 right-4 bg-black bg-opacity-75 text-white p-4 rounded">
+      <Canvas gl={{ antialias: true }}>
+        <PerformanceScene 
+          targetFPS={targetFPS}
+          onPerformanceUpdate={onPerformanceUpdate}
+          enableAdaptiveQuality={enableAdaptiveQuality}
+          debugMode={debugMode}
+          ref={ref}
+          setPerformanceMetrics={setPerformanceMetrics}
+        />
+        <Stats />
+      </Canvas>
+      
+      {debugMode && (
+        <div className="text-sm space-y-1">
+          <div>FPS: {performanceMetrics.fps.toFixed(1)}</div>
+          <div>Memory: {performanceMetrics.memoryUsage.toFixed(1)} MB</div>
+          <div>Draw Calls: {performanceMetrics.drawCalls}</div>
+          <div>Triangles: {performanceMetrics.triangleCount}</div>
+          <div>Quality: {performanceMetrics.qualityLevel.toFixed(2)}</div>
+        </div>
+      )}
+    </div>
+  );
+});
+
+/**
+ * Performance Scene Component - Child (R3F HOOKS OK HERE)
+ */
+const PerformanceScene = forwardRef(({ 
+  targetFPS,
+  onPerformanceUpdate,
+  enableAdaptiveQuality,
+  debugMode,
+  setPerformanceMetrics
+}, ref) => {
+  const { gl, scene } = useThree(); // ✅ OK - Inside Canvas
   
   // Performance tracking variables
   const frameCount = useRef(0);
@@ -133,7 +170,12 @@ export const PerformanceMonitor = forwardRef(({
       // Notify parent component of quality change
       if (onPerformanceUpdate) {
         onPerformanceUpdate({
-          ...performanceMetrics,
+          fps: 0, // Will be updated in useFrame
+          frameTime: 0,
+          memoryUsage: 0,
+          renderTime: 0,
+          triangleCount: 0,
+          drawCalls: 0,
           qualityLevel: recommendedQuality,
           qualityAdjusted: true
         });
@@ -165,7 +207,7 @@ export const PerformanceMonitor = forwardRef(({
     frameCount.current++;
     
     // Update memory usage periodically
-    let memoryUsage = performanceMetrics.memoryUsage;
+    let memoryUsage = 0;
     if (currentTime - memoryTracker.current.lastCheck > memoryTracker.current.interval) {
       const memory = getMemoryUsage();
       memoryUsage = memory.used;
@@ -199,7 +241,10 @@ export const PerformanceMonitor = forwardRef(({
   
   // Performance warning system
   const getPerformanceStatus = () => {
-    const { fps, memoryUsage, qualityLevel } = performanceMetrics;
+    const fps = frameTimeHistory.current.length > 0 ? 
+      1000 / (frameTimeHistory.current.reduce((a, b) => a + b, 0) / frameTimeHistory.current.length) : 60;
+    const memoryUsage = performance.memory ? performance.memory.usedJSHeapSize / 1024 / 1024 : 0;
+    const qualityLevel = qualityController.current.currentQuality;
     
     if (fps < targetFPS * 0.5 || memoryUsage > 1000) {
       return { status: 'critical', color: '#F44336' };
@@ -233,12 +278,14 @@ export const PerformanceMonitor = forwardRef(({
         <div style={{ color: status.color, fontWeight: 'bold', marginBottom: '5px' }}>
           Performance: {status.status.toUpperCase()}
         </div>
-        <div>FPS: {performanceMetrics.fps.toFixed(1)} / {targetFPS}</div>
-        <div>Frame Time: {performanceMetrics.frameTime.toFixed(2)}ms</div>
-        <div>Memory: {performanceMetrics.memoryUsage.toFixed(1)}MB</div>
-        <div>Triangles: {performanceMetrics.triangleCount.toLocaleString()}</div>
-        <div>Draw Calls: {performanceMetrics.drawCalls}</div>
-        <div>Quality: {(performanceMetrics.qualityLevel * 100).toFixed(0)}%</div>
+        <div>FPS: {(frameTimeHistory.current.length > 0 ? 
+          1000 / (frameTimeHistory.current.reduce((a, b) => a + b, 0) / frameTimeHistory.current.length) : 60).toFixed(1)} / {targetFPS}</div>
+        <div>Frame Time: {(frameTimeHistory.current.length > 0 ? 
+          frameTimeHistory.current.reduce((a, b) => a + b, 0) / frameTimeHistory.current.length : 16.67).toFixed(2)}ms</div>
+        <div>Memory: {(performance.memory ? performance.memory.usedJSHeapSize / 1024 / 1024 : 0).toFixed(1)}MB</div>
+        <div>Triangles: {(gl.info?.render?.triangles || 0).toLocaleString()}</div>
+        <div>Draw Calls: {gl.info?.render?.calls || 0}</div>
+        <div>Quality: {(qualityController.current.currentQuality * 100).toFixed(0)}%</div>
         
         {/* Performance bars */}
         <div style={{ marginTop: '10px' }}>
@@ -251,7 +298,8 @@ export const PerformanceMonitor = forwardRef(({
             overflow: 'hidden'
           }}>
             <div style={{
-              width: `${Math.min(100, (performanceMetrics.fps / targetFPS) * 100)}%`,
+              width: `${Math.min(100, ((frameTimeHistory.current.length > 0 ? 
+                1000 / (frameTimeHistory.current.reduce((a, b) => a + b, 0) / frameTimeHistory.current.length) : 60) / targetFPS) * 100)}%`,
               height: '100%',
               background: status.color,
               transition: 'width 0.3s ease'
@@ -269,9 +317,9 @@ export const PerformanceMonitor = forwardRef(({
             overflow: 'hidden'
           }}>
             <div style={{
-              width: `${Math.min(100, performanceMetrics.memoryUsage / 10)}%`, // Scale to 1GB max
+              width: `${Math.min(100, (performance.memory ? performance.memory.usedJSHeapSize / 1024 / 1024 : 0) / 10)}%`, // Scale to 1GB max
               height: '100%',
-              background: performanceMetrics.memoryUsage > 500 ? '#F44336' : '#4CAF50',
+              background: (performance.memory ? performance.memory.usedJSHeapSize / 1024 / 1024 : 0) > 500 ? '#F44336' : '#4CAF50',
               transition: 'width 0.3s ease'
             }} />
           </div>
@@ -280,38 +328,7 @@ export const PerformanceMonitor = forwardRef(({
     );
   };
   
-  return (
-    <group name="performance-monitor">
-      {/* Performance monitor doesn't render 3D objects, but can include debug visualizations */}
-      {debugMode && (
-        <>
-          {/* Performance status indicator in 3D space */}
-          <mesh position={[0, 100, 0]}>
-            <sphereGeometry args={[2, 16, 16]} />
-            <meshBasicMaterial color={getPerformanceStatus().color} />
-          </mesh>
-          
-          {/* FPS history graph */}
-          <group position={[50, 80, 0]}>
-            {frameTimeHistory.current.map((frameTime, index) => {
-              const height = Math.max(0.1, (60 / (1000 / frameTime)) * 5); // Scale to 5 units max
-              const color = frameTime > qualityController.current.targetFrameTime * 1.5 ? '#F44336' : '#4CAF50';
-              
-              return (
-                <mesh key={index} position={[index * 0.5, height / 2, 0]}>
-                  <boxGeometry args={[0.4, height, 0.4]} />
-                  <meshBasicMaterial color={color} transparent opacity={0.7} />
-                </mesh>
-              );
-            })}
-          </group>
-        </>
-      )}
-      
-      {/* Debug overlay */}
-      <DebugOverlay />
-    </group>
-  );
+  return null; // Scene component only monitors, doesn't render
 });
 
 PerformanceMonitor.displayName = 'PerformanceMonitor';
