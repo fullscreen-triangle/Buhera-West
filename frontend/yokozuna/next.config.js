@@ -5,8 +5,10 @@ const path = require('path');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
+  swcMinify: true,
   experimental: {
-    esmExternals: false,
+    esmExternals: true,
   },
   typescript: {
     // Enable TypeScript support
@@ -26,10 +28,62 @@ const nextConfig = {
       new webpack.DefinePlugin({ CESIUM_BASE_URL: JSON.stringify('/cesium') })
     );
 
-    // Handle WASM files if you're using them
+    // 2. WebAssembly support for environmental intelligence engines
     config.experiments = {
       ...config.experiments,
       asyncWebAssembly: true,
+    };
+    
+    // Handle WebAssembly files
+    config.module.rules.push({
+      test: /\.wasm$/,
+      type: "webassembly/async",
+    });
+    
+    // Ignore WebAssembly files in server-side rendering
+    if (isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+      };
+    }
+
+    // 3. Handle Three.js and React Three Fiber optimizations
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      three: path.resolve('./node_modules/three'),
+    };
+
+    // 4. Optimize for large datasets and 3D rendering
+    config.optimization = {
+      ...config.optimization,
+      splitChunks: {
+        chunks: 'all',
+        cacheGroups: {
+          three: {
+            test: /[\\/]node_modules[\\/](three|@react-three)[\\/]/,
+            name: 'three',
+            chunks: 'all',
+          },
+        },
+      },
+    };
+
+    // Handle missing three/webgpu module
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      'three/webgpu': false,
+      'three/tsl': false,
+      'three/nodes': false,
+    };
+
+    // Add alias for three/webgpu to provide empty module
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'three/webgpu': require.resolve('./src/utils/webgpu-mock.js'),
+      'three/tsl': false,
+      'three/nodes': false,
     };
 
     return config;

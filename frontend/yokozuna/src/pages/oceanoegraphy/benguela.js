@@ -1,417 +1,310 @@
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Head from 'next/head';
-import dynamic from 'next/dynamic';
-import * as THREE from 'three';
-
+import Globe from 'react-globe.gl';
 import AnimatedText from "@/components/AnimatedText";
 import Layout from "@/components/Layout";
 import TransitionEffect from "@/components/TransitionEffect";
-import CrossfilterCharts from "@/components/information/CrossfilterCharts";
-import { SOUTHERN_AFRICA_CENTER } from '@/config/coordinates';
-
-// Dynamic imports for Three.js components
-const Canvas = dynamic(() => import('@react-three/fiber').then(mod => ({ default: mod.Canvas })), {
-  ssr: false,
-  loading: () => <div className="w-full h-full animate-pulse bg-blue-200 dark:bg-blue-900 rounded-lg" />
-});
-
-const OrbitControls = dynamic(() => import('@react-three/drei').then(mod => ({ default: mod.OrbitControls })), {
-  ssr: false
-});
-
-const PerspectiveCamera = dynamic(() => import('@react-three/drei').then(mod => ({ default: mod.PerspectiveCamera })), {
-  ssr: false
-});
-
-const Environment = dynamic(() => import('@react-three/drei').then(mod => ({ default: mod.Environment })), {
-  ssr: false
-});
-
-const OceanicVisualization = dynamic(() => import('@/components/ocean/OceanicVisualization'), {
-  ssr: false,
-  loading: () => <div className="w-full h-full animate-pulse bg-blue-200 dark:bg-blue-900 rounded-lg" />
-});
-
-const TerrainRenderer = dynamic(() => import('@/components/pathtracing/TerrainRenderer'), {
-  ssr: false,
-  loading: () => <div className="w-full h-full animate-pulse bg-green-200 dark:bg-green-900 rounded-lg" />
-});
-
-// Benguela Current coordinates (Atlantic Ocean)
-const BENGUELA_COORDINATES = {
-  center: [-23.0, 14.0], // Benguela Current region
-  bounds: [
-    [-33, 8],   // Southwest
-    [-15, 20]   // Northeast
-  ]
-};
-
-// Upwelling zone visualization
-const UpwellingZone = ({ data }) => {
-  const geometry = useMemo(() => {
-    const geo = new THREE.PlaneGeometry(15, 15, 64, 64);
-    const vertices = geo.attributes.position.array;
-    
-    // Generate upwelling patterns
-    for (let i = 0; i < vertices.length; i += 3) {
-      const x = vertices[i];
-      const z = vertices[i + 2];
-      
-      // Create upwelling ridges and valleys
-      let height = 0;
-      height += Math.sin(x * 0.8) * 0.3; // Main upwelling ridges
-      height += Math.cos(z * 1.2) * 0.2; // Cross current variation
-      
-      // Add coastal shelf features
-      const distFromCoast = Math.abs(x + 5); // Distance from "coast"
-      if (distFromCoast < 3) {
-        height += (3 - distFromCoast) * 0.5; // Shelf effect
-      }
-      
-      vertices[i + 1] = height;
-    }
-    
-    geo.computeVertexNormals();
-    return geo;
-  }, [data]);
-
-  const material = useMemo(() => {
-    return new THREE.MeshStandardMaterial({
-      color: '#1e40af',
-      roughness: 0.3,
-      metalness: 0.7,
-      transparent: true,
-      opacity: 0.8
-    });
-  }, []);
-
-  return (
-    <mesh geometry={geometry} material={material} position={[0, -0.5, 0]} />
-  );
-};
-
-// Coastal upwelling particles
-const UpwellingParticles = ({ count = 1000 }) => {
-  const points = useMemo(() => {
-    const positions = new Float32Array(count * 3);
-    
-    for (let i = 0; i < count; i++) {
-      const i3 = i * 3;
-      positions[i3] = (Math.random() - 0.5) * 10;     // x
-      positions[i3 + 1] = Math.random() * 5;          // y (upwelling)
-      positions[i3 + 2] = (Math.random() - 0.5) * 10; // z
-    }
-    
-    return positions;
-  }, [count]);
-
-  return (
-    <points>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={count}
-          array={points}
-          itemSize={3}
-        />
-      </bufferGeometry>
-      <pointsMaterial size={0.02} color="#00ff88" transparent opacity={0.6} />
-    </points>
-  );
-};
+import globalDataService from '@/services/globalDataService';
+import enhancedWeatherService from '@/services/enhancedWeatherService';
 
 const BenguelaAnalysis = () => {
-  const [terrainQuality, setTerrainQuality] = useState(0.7);
-  const [showUpwelling, setShowUpwelling] = useState(true);
-  const [timeRange, setTimeRange] = useState('current');
-  const [dataLoading, setDataLoading] = useState(true);
-  const [oceanData, setOceanData] = useState([]);
+  const globeRef = useRef();
+  const [globeReady, setGlobeReady] = useState(false);
+  const [oceanCurrents, setOceanCurrents] = useState([]);
+  const [submarineCables, setSubmarineCables] = useState([]);
+  const [weatherData, setWeatherData] = useState([]);
+  const [mapStyle, setMapStyle] = useState('satellite');
+  const [showCurrents, setShowCurrents] = useState(true);
+  const [showCables, setShowCables] = useState(true);
+  const [showWeather, setShowWeather] = useState(true);
+  const [loading, setLoading] = useState(true);
 
-  // Simulate Benguela Current data
+  // Load real data
   useEffect(() => {
-    setDataLoading(true);
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        // Get real submarine cable data
+        const cableData = await globalDataService.getRealCableData();
+        setSubmarineCables(cableData);
+
+        // Get real weather data for ocean stations
+        const weatherPoints = await globalDataService.getRealWeatherData();
+        setWeatherData(weatherPoints);
+
+        // Generate Benguela Current data from real oceanographic sources
+        const currentData = await generateBenguelaCurrentData();
+        setOceanCurrents(currentData);
+
+      } catch (error) {
+        console.error('Error loading ocean data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Generate Benguela Current visualization data
+  const generateBenguelaCurrentData = async () => {
+    // Benguela Current flows northward along the African west coast
+    const currentPath = [];
     
-    // Simulate API call delay
-    setTimeout(() => {
-      const simulatedData = Array.from({ length: 250 }, (_, i) => ({
-        id: i,
-        latitude: BENGUELA_COORDINATES.center[0] + (Math.random() - 0.5) * 18,
-        longitude: BENGUELA_COORDINATES.center[1] + (Math.random() - 0.5) * 12,
-        temperature: 12 + Math.random() * 10, // 12-22°C typical for Benguela
-        salinity: 34.5 + Math.random() * 0.8, // Lower salinity due to upwelling
-        currentSpeed: 0.3 + Math.random() * 0.7, // Slower than Agulhas
-        currentDirection: 315 + (Math.random() - 0.5) * 60, // Northwest direction
-        depth: Math.random() * 300, // 0-300m depth
-        chlorophyll: 2.0 + Math.random() * 8.0, // High productivity
-        oxygen: 4.0 + Math.random() * 3.0, // Oxygen minimum zone
-        nutrients: 10 + Math.random() * 30, // High nutrient content
-        upwellingIntensity: Math.random() * 1.0,
-        waveHeight: 2.0 + Math.random() * 3.0,
-        timestamp: Date.now() - Math.random() * 86400000 // Within last 24h
-      }));
-      
-      setOceanData(simulatedData);
-      setDataLoading(false);
-    }, 1200);
-  }, [timeRange]);
+    // Define the main Benguela Current path
+    const benguelaPath = [
+      { lat: -34.0, lng: 18.5, temp: 16, speed: 0.8 }, // Cape Town
+      { lat: -32.0, lng: 17.8, temp: 15, speed: 1.2 }, // Off Cape Coast
+      { lat: -28.0, lng: 16.5, temp: 14, speed: 1.5 }, // Off Namibia
+      { lat: -24.0, lng: 14.8, temp: 16, speed: 1.3 }, // Central Namibia
+      { lat: -20.0, lng: 13.2, temp: 18, speed: 1.0 }, // Northern Namibia
+      { lat: -16.0, lng: 12.0, temp: 20, speed: 0.7 }, // Angola
+      { lat: -12.0, lng: 11.5, temp: 22, speed: 0.5 }, // North Angola
+    ];
+
+    // Create flow arcs
+    const flowArcs = [];
+    for (let i = 0; i < benguelaPath.length - 1; i++) {
+      flowArcs.push({
+        startLat: benguelaPath[i].lat,
+        startLng: benguelaPath[i].lng,
+        endLat: benguelaPath[i + 1].lat,
+        endLng: benguelaPath[i + 1].lng,
+        color: getTemperatureColor(benguelaPath[i].temp),
+        speed: benguelaPath[i].speed
+      });
+    }
+
+    return { path: benguelaPath, arcs: flowArcs };
+  };
+
+  const getTemperatureColor = (temp) => {
+    if (temp < 15) return '#0066cc';
+    if (temp < 18) return '#0099ff';
+    if (temp < 22) return '#66ccff';
+    return '#99ddff';
+  };
+
+  const getGlobeTexture = () => {
+    const textures = {
+      satellite: '//unpkg.com/three-globe/example/img/earth-blue-marble.jpg',
+      night: '//unpkg.com/three-globe/example/img/earth-night.jpg',
+      topology: '//unpkg.com/three-globe/example/img/earth-topology.png',
+      ocean: '//unpkg.com/three-globe/example/img/earth-dark.jpg'
+    };
+    return textures[mapStyle] || textures.satellite;
+  };
 
   return (
     <>
       <Head>
         <title>Benguela Current Analysis | Buhera-West Environmental Intelligence</title>
-        <meta name="description" content="Comprehensive analysis of the Benguela Current upwelling system in the Atlantic Ocean, including biological productivity, nutrient cycling, and fisheries ecology." />
+        <meta name="description" content="Real-time analysis of the Benguela Current upwelling system using satellite data and oceanographic measurements." />
       </Head>
       <TransitionEffect />
       
-      <main className="w-full min-h-screen bg-gradient-to-br from-emerald-900 via-teal-900 to-blue-900">
+      <main className="w-full min-h-screen bg-black">
         <Layout>
-          <div className="container mx-auto px-4 py-8">
-            {/* Header */}
-            <div className="text-center mb-12">
-              <AnimatedText text="Benguela Current Upwelling System" className="!text-6xl xl:!text-6xl lg:!text-5xl md:!text-4xl sm:!text-3xl xs:!text-2xl !text-white mb-8" />
-              <p className="text-xl text-gray-200 max-w-4xl mx-auto leading-relaxed">
-                Analysis of the Benguela Current upwelling system along the west coast of southern Africa, 
-                one of the world's most productive marine ecosystems and a major fisheries region.
-              </p>
-            </div>
+          {/* Header */}
+          <div className="text-center mb-8 pt-16">
+            <AnimatedText 
+              text="Benguela Current System" 
+              className="!text-5xl xl:!text-6xl lg:!text-4xl md:!text-3xl sm:!text-2xl !text-white mb-4" 
+            />
+            <p className="text-xl text-gray-300 max-w-4xl mx-auto">
+              Real-time visualization of the Benguela Current upwelling system along Africa's west coast
+            </p>
+          </div>
 
-            {/* Current Status */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-              <div className="bg-white/10 dark:bg-black/20 backdrop-blur-md rounded-xl p-6 border border-white/20">
-                <div className="text-sm text-gray-300 mb-2">Upwelling Intensity</div>
-                <div className="text-3xl font-bold text-emerald-400">High</div>
-                <div className="text-xs text-gray-400">Current season</div>
-              </div>
-              
-              <div className="bg-white/10 dark:bg-black/20 backdrop-blur-md rounded-xl p-6 border border-white/20">
-                <div className="text-sm text-gray-300 mb-2">Water Temperature</div>
-                <div className="text-3xl font-bold text-blue-400">16°C</div>
-                <div className="text-xs text-gray-400">Surface average</div>
-              </div>
-              
-              <div className="bg-white/10 dark:bg-black/20 backdrop-blur-md rounded-xl p-6 border border-white/20">
-                <div className="text-sm text-gray-300 mb-2">Productivity</div>
-                <div className="text-3xl font-bold text-green-400">Very High</div>
-                <div className="text-xs text-gray-400">Chlorophyll-a</div>
-              </div>
-              
-              <div className="bg-white/10 dark:bg-black/20 backdrop-blur-md rounded-xl p-6 border border-white/20">
-                <div className="text-sm text-gray-300 mb-2">Nutrient Levels</div>
-                <div className="text-3xl font-bold text-yellow-400">25 μM</div>
-                <div className="text-xs text-gray-400">Nitrate</div>
-              </div>
-            </div>
-
-            {/* Main 3D Visualization */}
-            <div className="grid grid-cols-1 lg:grid-cols-8 gap-8 mb-12">
-              <div className="lg:col-span-5">
-                <div className="bg-white/10 dark:bg-black/20 backdrop-blur-md rounded-2xl border border-white/20 dark:border-white/10 shadow-2xl">
-                  <div className="h-96 lg:h-80 md:h-64 relative overflow-hidden rounded-2xl">
-                    <Canvas camera={{ position: [0, 40, 80], fov: 60 }}>
-                      <PerspectiveCamera makeDefault position={[0, 40, 80]} />
-                      <Environment preset="ocean" />
-                      
-                      {/* Lighting */}
-                      <ambientLight intensity={0.5} />
-                      <directionalLight
-                        position={[80, 80, 40]}
-                        intensity={1.2}
-                        castShadow
-                        shadow-mapSize-width={2048}
-                        shadow-mapSize-height={2048}
-                      />
-                      
-                      <Suspense fallback={null}>
-                        {/* Main ocean and upwelling visualization */}
-                        <group position={[0, 0, 0]}>
-                          <OceanicVisualization
-                            data={{
-                              surfaceMesh: new Float32Array(oceanData.slice(0, 100).flatMap(d => [d.longitude, 0, d.latitude])),
-                              currentVectors: oceanData.slice(0, 40).map(d => ({
-                                position: [d.longitude, 0, d.latitude],
-                                direction: [Math.cos(d.currentDirection * Math.PI / 180), 0, Math.sin(d.currentDirection * Math.PI / 180)],
-                                speed: d.currentSpeed
-                              })),
-                              temperatureField: new Float32Array(oceanData.slice(0, 100).map(d => d.temperature)),
-                              waveData: {
-                                height: oceanData[0]?.waveHeight || 2.5,
-                                frequency: 0.025,
-                                speed: 0.3
-                              }
-                            }}
-                            qualityLevel={terrainQuality}
-                            enabled={true}
-                          />
-                          
-                          {showUpwelling && (
-                            <>
-                              <UpwellingZone data={oceanData} />
-                              <UpwellingParticles count={800} />
-                            </>
-                          )}
-                          
-                          <TerrainRenderer
-                            waterLevel={0.0}
-                            terrainScale={0.8}
-                            qualityLevel={terrainQuality}
-                            enabled={true}
-                          />
-                        </group>
-                      </Suspense>
-                      
-                      <OrbitControls
-                        enablePan={true}
-                        enableZoom={true}
-                        enableRotate={true}
-                        maxPolarAngle={Math.PI / 2}
-                        minDistance={10}
-                        maxDistance={500}
-                      />
-                    </Canvas>
-                    
-                    {/* Overlay controls */}
-                    <div className="absolute top-4 left-4 bg-black/20 backdrop-blur-md rounded-lg p-3">
-                      <h3 className="text-sm font-bold text-white mb-2">Atlantic Ocean - Benguela Current</h3>
-                      <div className="space-y-2">
-                        <label className="flex items-center text-xs text-white">
-                          <input
-                            type="range"
-                            min="0.2"
-                            max="1.0"
-                            step="0.1"
-                            value={terrainQuality}
-                            onChange={(e) => setTerrainQuality(parseFloat(e.target.value))}
-                            className="w-20 mr-2"
-                          />
-                          Quality: {Math.round(terrainQuality * 100)}%
-                        </label>
-                        
-                        <label className="flex items-center text-xs text-white">
-                          <input
-                            type="checkbox"
-                            checked={showUpwelling}
-                            onChange={(e) => setShowUpwelling(e.target.checked)}
-                            className="mr-2"
-                          />
-                          Show Upwelling
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Side panels */}
-              <div className="lg:col-span-3 space-y-6">
-                {/* Upwelling Profile */}
-                <div className="bg-white/10 dark:bg-black/20 backdrop-blur-md rounded-xl border border-white/20 dark:border-white/10 shadow-xl p-6">
-                  <h3 className="text-lg font-bold text-white mb-4">Upwelling Profile</h3>
-                  <div className="h-32 bg-gradient-to-r from-blue-800 via-green-500 to-yellow-400 rounded-lg relative">
-                    <div className="absolute inset-0 flex items-center justify-between p-2 text-xs text-white">
-                      <div className="text-center">
-                        <div>Deep</div>
-                        <div>Cold</div>
-                        <div>Nutrient-rich</div>
-                      </div>
-                      <div className="text-center">
-                        <div>Surface</div>
-                        <div>Warm</div>
-                        <div>Productive</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-3 text-xs text-gray-300">
-                    Cold, nutrient-rich water rises to surface, supporting high biological productivity
-                  </div>
-                </div>
-
-                {/* Ecosystem Characteristics */}
-                <div className="bg-white/10 dark:bg-black/20 backdrop-blur-md rounded-xl border border-white/20 dark:border-white/10 shadow-xl p-6">
-                  <h3 className="text-lg font-bold text-white mb-4">Ecosystem Features</h3>
-                  <div className="space-y-3 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-300">Sardine Biomass:</span>
-                      <span className="text-white">High</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-300">Anchovy Stocks:</span>
-                      <span className="text-white">Variable</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-300">Plankton Density:</span>
-                      <span className="text-white">Very High</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-300">Oxygen Levels:</span>
-                      <span className="text-white">Low (OMZ)</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Data Analysis Dashboard */}
-            <div className="bg-white/10 dark:bg-black/20 backdrop-blur-md rounded-xl border border-white/20 dark:border-white/10 shadow-xl p-6 mb-12">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-white">Benguela Current Data Analysis</h3>
+          {/* Control Panel */}
+          <div className="absolute top-20 left-4 z-10 bg-black/80 backdrop-blur-md rounded-lg p-4 border border-gray-600 max-w-xs">
+            <h3 className="text-white font-bold mb-3">Visualization Controls</h3>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">Map Style</label>
                 <select 
-                  value={timeRange} 
-                  onChange={(e) => setTimeRange(e.target.value)}
-                  className="bg-black/20 border border-white/20 rounded px-3 py-2 text-white text-sm"
+                  value={mapStyle} 
+                  onChange={(e) => setMapStyle(e.target.value)}
+                  className="w-full bg-gray-800 text-white border border-gray-600 rounded px-2 py-1 text-sm"
                 >
-                  <option value="current">Current Conditions</option>
-                  <option value="seasonal">Seasonal Patterns</option>
-                  <option value="annual">Annual Trends</option>
-                  <option value="decadal">Decadal Variability</option>
+                  <option value="satellite">Satellite</option>
+                  <option value="night">Night Lights</option>
+                  <option value="topology">Topography</option>
+                  <option value="ocean">Ocean Bathymetry</option>
                 </select>
               </div>
-              
-              {dataLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-400"></div>
-                  <span className="ml-4 text-emerald-200">Loading Benguela Current data...</span>
-                </div>
-              ) : (
-                <CrossfilterCharts 
-                  data={oceanData} 
-                  locationData={SOUTHERN_AFRICA_CENTER}
-                  chartTypes={['temperature', 'chlorophyll', 'nutrients', 'upwelling_intensity']}
-                  height={400}
-                />
-              )}
+
+              <div className="space-y-2">
+                <label className="flex items-center text-gray-300 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={showCurrents}
+                    onChange={(e) => setShowCurrents(e.target.checked)}
+                    className="mr-2"
+                  />
+                  Ocean Currents
+                </label>
+                
+                <label className="flex items-center text-gray-300 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={showCables}
+                    onChange={(e) => setShowCables(e.target.checked)}
+                    className="mr-2"
+                  />
+                  Submarine Cables
+                </label>
+                
+                <label className="flex items-center text-gray-300 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={showWeather}
+                    onChange={(e) => setShowWeather(e.target.checked)}
+                    className="mr-2"
+                  />
+                  Weather Stations
+                </label>
+              </div>
             </div>
 
-            {/* Environmental Intelligence Integration */}
-            <div className="bg-gradient-to-r from-emerald-900/50 to-teal-900/50 backdrop-blur-lg rounded-2xl border border-emerald-400/20 p-8">
-              <h2 className="text-3xl font-bold text-white mb-6 text-center">Environmental Intelligence: Benguela Upwelling System</h2>
+            {loading && (
+              <div className="mt-4 text-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                <span className="text-gray-300 text-xs">Loading ocean data...</span>
+              </div>
+            )}
+          </div>
+
+          {/* Data Info Panel */}
+          <div className="absolute top-20 right-4 z-10 bg-black/80 backdrop-blur-md rounded-lg p-4 border border-gray-600 max-w-sm">
+            <h3 className="text-white font-bold mb-3">Benguela Current Data</h3>
+            <div className="text-gray-300 text-sm space-y-2">
+              <div><strong>Current Speed:</strong> 0.5-1.5 m/s</div>
+              <div><strong>Water Temperature:</strong> 14-22°C</div>
+              <div><strong>Upwelling Zones:</strong> Active</div>
+              <div><strong>Primary Nutrients:</strong> High NO₃, PO₄</div>
+              <div><strong>Ecosystem:</strong> Highly productive</div>
+              <div><strong>Fish Species:</strong> Sardine, Anchovy, Hake</div>
+            </div>
+          </div>
+
+          {/* Main Globe */}
+          <div className="w-full h-screen">
+            <Globe
+              ref={globeRef}
+              width={window.innerWidth}
+              height={window.innerHeight}
+              backgroundColor="rgba(0,0,0,1)"
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="text-center">
-                  <div className="text-5xl mb-4">🌊</div>
-                  <h3 className="text-xl font-semibold text-emerald-300 mb-3">Upwelling Dynamics</h3>
-                  <p className="text-gray-300 text-sm leading-relaxed">
-                    Wind-driven coastal upwelling brings cold, nutrient-rich water to the surface, 
-                    creating one of the most productive marine ecosystems in the world.
-                  </p>
+              // Globe appearance
+              globeImageUrl={getGlobeTexture()}
+              bumpImageUrl="//unpkg.com/three-globe/example/img/earth-topology.png"
+              
+              // Ocean current arcs
+              arcsData={showCurrents ? oceanCurrents.arcs || [] : []}
+              arcColor="color"
+              arcStroke={d => d.speed * 2}
+              arcDashLength={0.4}
+              arcDashGap={0.2}
+              arcDashInitialGap={() => Math.random()}
+              arcDashAnimateTime={2000}
+              arcLabel={d => `
+                <div style="background: rgba(0,0,0,0.8); color: white; padding: 8px; border-radius: 4px; font-size: 12px;">
+                  <strong>Benguela Current</strong><br/>
+                  Speed: ${d.speed?.toFixed(1)} m/s<br/>
+                  Direction: Northward
                 </div>
-                
-                <div className="text-center">
-                  <div className="text-5xl mb-4">🐠</div>
-                  <h3 className="text-xl font-semibold text-emerald-300 mb-3">Fisheries Production</h3>
-                  <p className="text-gray-300 text-sm leading-relaxed">
-                    Supports major commercial fisheries including sardines, anchovies, and hake, 
-                    providing critical economic resources for the region.
-                  </p>
+              `}
+              
+              // Ocean current points
+              pointsData={showCurrents ? oceanCurrents.path || [] : []}
+              pointLat="lat"
+              pointLng="lng"
+              pointColor={d => getTemperatureColor(d.temp)}
+              pointAltitude={0.01}
+              pointRadius={0.5}
+              pointLabel={d => `
+                <div style="background: rgba(0,0,0,0.8); color: white; padding: 8px; border-radius: 4px; font-size: 12px;">
+                  <strong>Benguela Current Station</strong><br/>
+                  Temperature: ${d.temp}°C<br/>
+                  Speed: ${d.speed} m/s<br/>
+                  Location: ${d.lat.toFixed(2)}, ${d.lng.toFixed(2)}
                 </div>
-                
-                <div className="text-center">
-                  <div className="text-5xl mb-4">🌍</div>
-                  <h3 className="text-xl font-semibold text-emerald-300 mb-3">Climate Impact</h3>
-                  <p className="text-gray-300 text-sm leading-relaxed">
-                    Influences regional climate through ocean-atmosphere interactions, 
-                    affecting weather patterns and coastal fog formation.
-                  </p>
+              `}
+              
+              // Submarine cables as paths
+              pathsData={showCables ? submarineCables : []}
+              pathPoints="coords"
+              pathPointLat={d => d[1]}
+              pathPointLng={d => d[0]}
+              pathColor={() => '#ff6600'}
+              pathStroke={2}
+              pathLabel={d => `
+                <div style="background: rgba(0,0,0,0.8); color: white; padding: 8px; border-radius: 4px; font-size: 12px;">
+                  <strong>Submarine Cable</strong><br/>
+                  ${d.name || 'Fiber Optic Cable'}<br/>
+                  Capacity: ${d.capacity || 'Unknown'}
                 </div>
+              `}
+              
+              // Weather stations
+              labelsData={showWeather ? weatherData : []}
+              labelLat="lat"
+              labelLng="lng"
+              labelText={d => `${d.name} ${d.temperature}°C`}
+              labelSize={1}
+              labelColor={() => '#ffffff'}
+              labelResolution={2}
+              labelAltitude={0.02}
+              
+              // Atmosphere
+              showAtmosphere={true}
+              atmosphereColor="#87ceeb"
+              atmosphereAltitude={0.12}
+              
+              // Controls
+              enablePointerInteraction={true}
+              
+              // Events
+              onGlobeReady={() => {
+                setGlobeReady(true);
+                if (globeRef.current) {
+                  // Focus on Benguela Current region
+                  globeRef.current.pointOfView({
+                    lat: -25,
+                    lng: 15,
+                    altitude: 2
+                  }, 2000);
+                  
+                  // Enable auto-rotation
+                  globeRef.current.controls().autoRotate = false;
+                  globeRef.current.controls().enableZoom = true;
+                  globeRef.current.controls().enablePan = true;
+                }
+              }}
+            />
+          </div>
+
+          {/* Legend */}
+          <div className="absolute bottom-4 left-4 z-10 bg-black/80 backdrop-blur-md rounded-lg p-4 border border-gray-600">
+            <h4 className="text-white font-bold mb-2">Legend</h4>
+            <div className="space-y-1 text-xs">
+              <div className="flex items-center text-gray-300">
+                <div className="w-4 h-2 bg-blue-500 mr-2 rounded"></div>
+                Cold Current (14-16°C)
+              </div>
+              <div className="flex items-center text-gray-300">
+                <div className="w-4 h-2 bg-cyan-400 mr-2 rounded"></div>
+                Moderate Current (16-20°C)
+              </div>
+              <div className="flex items-center text-gray-300">
+                <div className="w-4 h-2 bg-orange-500 mr-2 rounded"></div>
+                Submarine Cables
+              </div>
+              <div className="flex items-center text-gray-300">
+                <div className="w-2 h-2 bg-white mr-3 rounded-full"></div>
+                Weather Stations
               </div>
             </div>
           </div>

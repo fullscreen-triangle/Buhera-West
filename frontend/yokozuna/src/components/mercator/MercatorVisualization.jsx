@@ -22,99 +22,41 @@ export const MercatorVisualization = ({
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [performanceMetrics, setPerformanceMetrics] = React.useState(null);
 
-  // Initialize mock engine
+  // Initialize WASM engine
   useEffect(() => {
     const initEngine = async () => {
       try {
-        // Mock engine initialization - would be replaced with actual WASM module
+        // Import and initialize the WASM mercator engine
         console.log('Mercator visualization engine initializing...');
         
-        const mockEngine = {
-          generate_spheres: async (count) => {
-            const spheres = [];
-            for (let i = 0; i < count; i++) {
-              const latitude = (Math.random() - 0.5) * 160.0; // -80 to 80 degrees
-              const longitude = (Math.random() - 0.5) * 360.0; // -180 to 180 degrees
-              const altitude = 2000000.0; // 2000km altitude
-              
-              // Mock environmental data
-              const temperature = (Math.random() - 0.5) * 80; // -40 to 40 degrees
-              const humidity = Math.random() * 100;
-              const pressure = 900 + Math.random() * 200;
-              const wind_speed = Math.random() * 50;
-              const solar_irradiance = Math.random() * 1000;
-              
-              // Calculate material properties based on environmental data
-              const temp_normalized = (temperature + 50.0) / 100.0;
-              const color = [
-                temp_normalized * 0.8 + 0.2,
-                0.5 - Math.abs(temp_normalized - 0.5),
-                (1.0 - temp_normalized) * 0.8 + 0.2,
-              ];
-              
-              const opacity = humidity / 100.0 * 0.7 + 0.3;
-              const emission_intensity = Math.min(wind_speed / 50.0, 1.0);
-              
-              spheres.push({
-                id: `sphere_${i}`,
-                geo_position: { latitude, longitude, altitude },
-                mercator_position: {
-                  projected_x: longitude * 111320, // Rough conversion
-                  projected_y: Math.log(Math.tan(Math.PI/4 + latitude * Math.PI/360)) * 6378137,
-                  projected_z: altitude,
-                  distortion_factor: 1.0 / Math.cos(latitude * Math.PI / 180),
-                },
-                radius_meters: 200000.0,
-                environmental_data: {
-                  temperature,
-                  humidity,
-                  pressure,
-                  wind_speed,
-                  solar_irradiance,
-                  geological_composition: 'Mixed',
-                  water_content: Math.random() * 100,
-                },
-                material_properties: {
-                  color,
-                  metallic: 0.1,
-                  roughness: 0.8,
-                  opacity,
-                  emission: [
-                    emission_intensity * 0.1,
-                    emission_intensity * 0.2,
-                    emission_intensity * 0.3,
-                  ],
-                },
-              });
-            }
-            return spheres;
-          },
-          update_environmental_data: (timestamp) => ({
-            updated_at: timestamp,
-            frame_count: Math.floor(timestamp * 60),
-          }),
+        const { MercatorVisualizationEngine } = await import('../../wasm/mercator_engine');
+        const engine = new MercatorVisualizationEngine();
+        await engine.initialize();
+        
+        engineRef.current = engine;
+        
+        // Generate initial spheres
+        const initialSpheres = await engine.generate_spheres(sphereCount);
+        setSpheres(initialSpheres);
+        setIsInitialized(true);
+        
+        console.log('Mercator visualization engine initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize Mercator engine:', error);
+        setIsInitialized(true); // Set to true anyway to show fallback
+        
+        // Fallback to simple mock if WASM fails
+        engineRef.current = {
+          generate_spheres: async (count) => [],
+          update_environmental_data: (timestamp) => ({ updated_at: timestamp }),
           get_performance_metrics: () => ({
             current_fps: 60,
             average_frame_time: 16.67,
             current_quality: 1.0,
             target_fps: targetFPS,
           }),
-          adjust_quality: (target) => {
-            console.log('Adjusting quality for target FPS:', target);
-          },
+          adjust_quality: () => {},
         };
-        
-        engineRef.current = mockEngine;
-        
-        // Generate initial spheres
-        const initialSpheres = await mockEngine.generate_spheres(sphereCount);
-        setSpheres(initialSpheres);
-        setIsInitialized(true);
-        
-        console.log('Mercator visualization engine initialized');
-      } catch (error) {
-        console.error('Failed to initialize Mercator engine:', error);
-        setIsInitialized(true); // Set to true anyway to show fallback
       }
     };
 

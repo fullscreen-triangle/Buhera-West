@@ -494,6 +494,12 @@ const Navbar = () => {
           description: "Crop field analysis & monitoring"
         },
         {
+          href: "/agriculture/agricultural-aviation-intelligence",
+          title: "Agricultural Aviation Intelligence",
+          icon: "🛩️",
+          description: "Agricultural & aviation intelligence visualization"
+        },
+        {
           href: "/water/hydrology",
           title: "Hydrology", 
           icon: "💧",
@@ -521,6 +527,12 @@ const Navbar = () => {
           title: "Geology",
           icon: "🪨",
           description: "Mineral detection & subsurface"
+        },
+        {
+          href: "/geology/terrain",
+          title: "Terrain",
+          icon: "🏔️",
+          description: "3D terrain visualization & analysis"
         }
       ]
     },
@@ -552,7 +564,7 @@ const Navbar = () => {
           description: "Signal reconstruction & analysis"
         },
         {
-          href: "/location",
+          href: "/weather/location",
           title: "Location",
           icon: "📍",
           description: "Geographic positioning & mapping"

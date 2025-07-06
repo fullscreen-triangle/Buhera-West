@@ -1,386 +1,461 @@
-import React, { useState } from 'react'
-import Head from 'next/head'
-import Layout from '@/components/Layout'
-import TransitionEffect from '@/components/TransitionEffect'
-import Information from '@/components/information/Information'
-import { motion } from 'framer-motion'
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import Head from 'next/head';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Environment, Stats } from '@react-three/drei';
+import AnimatedText from "@/components/AnimatedText";
+import Layout from "@/components/Layout";
+import TransitionEffect from "@/components/TransitionEffect";
+import AgriculturalVisualization from '@/components/agricultural/AgriculturalVisualization';
+import { CropFieldVisualization } from '@/components/agriculture/CropFieldVisualization';
+import enhancedWeatherService from '@/services/enhancedWeatherService';
+import globalDataService from '@/services/globalDataService';
 
-const AgriculturePage = () => {
-  const [cropType, setCropType] = useState('maize')
-  const [analysisMode, setAnalysisMode] = useState('optimization')
+const AgriculturalAnalysis = () => {
+  const [visualizationMode, setVisualizationMode] = useState('agricultural_field');
+  const [cropFieldData, setCropFieldData] = useState([]);
+  const [agriculturalData, setAgriculturalData] = useState(null);
+  const [weatherData, setWeatherData] = useState([]);
+  const [visualMode, setVisualMode] = useState('growth_stage');
+  const [seasonalTime, setSeasonalTime] = useState(180); // Day of year
+  const [qualityLevel, setQualityLevel] = useState(0.8);
+  const [showTooltips, setShowTooltips] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Simulated agricultural data
-  const cropData = {
-    maize: { 
-      stage: 'Tasseling', 
-      health: 'Excellent', 
-      yield: '8.2 t/ha', 
-      waterNeed: 'Medium',
-      harvestDate: '2024-04-15'
-    },
-    tobacco: { 
-      stage: 'Leaf Development', 
-      health: 'Good', 
-      yield: '2.1 t/ha', 
-      waterNeed: 'High',
-      harvestDate: '2024-03-28'
-    },
-    cotton: { 
-      stage: 'Flowering', 
-      health: 'Fair', 
-      yield: '1.8 t/ha', 
-      waterNeed: 'Low',
-      harvestDate: '2024-05-20'
+  // Load real agricultural and weather data
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        // Get real weather data for agricultural regions
+        const weatherPoints = await globalDataService.getRealWeatherData();
+        setWeatherData(weatherPoints);
+
+        // Get enhanced weather data for agricultural analysis
+        const agriculturalWeather = await enhancedWeatherService.getAgriculturalData([
+          { lat: -26.0, lng: 28.0 }, // Gauteng
+          { lat: -29.0, lng: 30.0 }, // KwaZulu-Natal
+          { lat: -25.5, lng: 29.0 }, // Mpumalanga
+          { lat: -28.5, lng: 26.5 }, // Free State
+          { lat: -30.0, lng: 25.0 }, // Eastern Cape
+        ]);
+
+        // Generate real crop field data from agricultural regions
+        const realCropData = await generateRealCropFieldData(agriculturalWeather);
+        setCropFieldData(realCropData);
+
+        // Generate agricultural visualization data
+        const agriData = await generateAgriculturalVisualizationData(agriculturalWeather, realCropData);
+        setAgriculturalData(agriData);
+
+      } catch (error) {
+        console.error('Error loading agricultural data:', error);
+        setError(error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Generate real crop field data based on weather conditions
+  const generateRealCropFieldData = async (weatherData) => {
+    const cropFields = [];
+    
+    // Major South African agricultural regions
+    const agriculturalRegions = [
+      { name: 'Gauteng Highveld', lat: -26.0, lng: 28.0, primaryCrop: 'maize', area: 1200 },
+      { name: 'KwaZulu-Natal Midlands', lat: -29.0, lng: 30.0, primaryCrop: 'maize', area: 1800 },
+      { name: 'Mpumalanga Lowveld', lat: -25.5, lng: 29.0, primaryCrop: 'maize', area: 1500 },
+      { name: 'Free State Breadbasket', lat: -28.5, lng: 26.5, primaryCrop: 'wheat', area: 2200 },
+      { name: 'Eastern Cape Karoo', lat: -30.0, lng: 25.0, primaryCrop: 'wheat', area: 900 },
+    ];
+
+    agriculturalRegions.forEach((region, index) => {
+      const weatherForRegion = weatherData.find(w => 
+        Math.abs(w.lat - region.lat) < 0.5 && Math.abs(w.lng - region.lng) < 0.5
+      );
+
+      // Calculate growth stage based on seasonal time and temperature
+      const growthStage = calculateGrowthStage(seasonalTime, region.primaryCrop, weatherForRegion?.temperature || 20);
+      
+      // Calculate yield prediction based on weather conditions
+      const yieldPrediction = calculateYieldPrediction(
+        region.primaryCrop, 
+        weatherForRegion?.temperature || 20,
+        weatherForRegion?.humidity || 60,
+        weatherForRegion?.windSpeed || 5
+      );
+
+      cropFields.push({
+        id: `field_${index}`,
+        field_name: region.name,
+        crop_type: region.primaryCrop,
+        field_boundaries: generateFieldBoundaries(region.lat, region.lng, region.area),
+        agricultural_properties: {
+          crop_variety: region.primaryCrop === 'maize' ? 'Dent Corn' : 'Hard Red Winter',
+          planting_date: region.primaryCrop === 'maize' ? '2024-10-15' : '2024-05-01',
+          expected_harvest: region.primaryCrop === 'maize' ? '2024-04-30' : '2024-12-15',
+          growth_stage: growthStage,
+          yield_prediction: yieldPrediction,
+          field_area: region.area,
+          irrigation_status: weatherForRegion ? getIrrigationStatus(weatherForRegion) : 'Rainfed',
+          soil_quality: {
+            ph: 6.0 + Math.random() * 1.5,
+            organic_matter: 2.5 + Math.random() * 2.0,
+            nitrogen: 120 + Math.random() * 80,
+            phosphorus: 25 + Math.random() * 20,
+            potassium: 180 + Math.random() * 120
+          },
+          pest_pressure: Math.random() * 0.3,
+          nutrient_levels: {
+            nitrogen: 120 + Math.random() * 80,
+            phosphorus: 25 + Math.random() * 20,
+            potassium: 180 + Math.random() * 120
+          }
+        },
+        environmental_factors: {
+          temperature: weatherForRegion?.temperature || 20,
+          rainfall: (weatherForRegion?.humidity || 60) * 2,
+          humidity: weatherForRegion?.humidity || 60,
+          soil_moisture: calculateSoilMoisture(weatherForRegion?.humidity || 60),
+          sunlight_hours: calculateSunlightHours(seasonalTime),
+          wind_speed: weatherForRegion?.windSpeed || 5
+        }
+      });
+    });
+
+    return cropFields;
+  };
+
+  // Generate agricultural visualization data
+  const generateAgriculturalVisualizationData = async (weatherData, cropFields) => {
+    // Create field mesh data
+    const fieldMeshData = new Float32Array(cropFields.length * 100);
+    for (let i = 0; i < fieldMeshData.length; i++) {
+      fieldMeshData[i] = -5 + Math.random() * 10; // Terrain elevation
     }
-  }
 
-  const agriculturalMetrics = {
-    soilMoisture: 68,
-    nutrientLevel: 82,
-    pestRisk: 23,
-    diseaseRisk: 15,
-    irrigationEfficiency: 89
-  }
+    // Create crop positions
+    const cropPositions = [];
+    cropFields.forEach((field, fieldIndex) => {
+      const fieldCenterX = field.field_boundaries[0]?.longitude * 100 || 0;
+      const fieldCenterZ = field.field_boundaries[0]?.latitude * 100 || 0;
+      
+      const cropsPerField = Math.floor(field.agricultural_properties.field_area / 2);
+      for (let i = 0; i < cropsPerField; i++) {
+        cropPositions.push({
+          x: fieldCenterX + (Math.random() - 0.5) * 100,
+          y: 0,
+          z: fieldCenterZ + (Math.random() - 0.5) * 100,
+          cropType: field.crop_type,
+          health: 0.7 + Math.random() * 0.3,
+          growth: field.agricultural_properties.growth_stage
+        });
+      }
+    });
 
-  const optimizationRecommendations = [
-    { type: 'Irrigation', action: 'Increase by 15%', timing: 'Next 48 hours', impact: 'High' },
-    { type: 'Fertilizer', action: 'Apply NPK 15-15-15', timing: 'Next week', impact: 'Medium' },
-    { type: 'Pest Control', action: 'Monitor for aphids', timing: 'Daily', impact: 'Low' },
-    { type: 'Harvest', action: 'Prepare equipment', timing: '2 weeks', impact: 'Critical' }
-  ]
+    // Create sensor network
+    const sensorNetwork = cropFields.map((field, index) => ({
+      x: field.field_boundaries[0]?.longitude * 100 || 0,
+      y: 5,
+      z: field.field_boundaries[0]?.latitude * 100 || 0,
+      type: index % 2 === 0 ? 'soil_moisture' : 'weather',
+      status: 'active',
+      batteryLevel: 0.6 + Math.random() * 0.4
+    }));
+
+    // Create irrigation coverage
+    const irrigationCoverage = cropFields
+      .filter(field => field.agricultural_properties.irrigation_status === 'Irrigated')
+      .map(field => ({
+        center: {
+          x: field.field_boundaries[0]?.longitude * 100 || 0,
+          y: 2,
+          z: field.field_boundaries[0]?.latitude * 100 || 0
+        },
+        radius: Math.sqrt(field.agricultural_properties.field_area) * 2,
+        efficiency: 0.7 + Math.random() * 0.3
+      }));
+
+    // Create yield predictions
+    const yieldPrediction = cropFields.map(field => ({
+      cropType: field.crop_type,
+      predictedYield: field.agricultural_properties.yield_prediction,
+      confidence: 0.8 + Math.random() * 0.2
+    }));
+
+    return {
+      fieldMesh: fieldMeshData,
+      cropPositions,
+      sensorNetwork,
+      irrigationCoverage,
+      yieldPrediction
+    };
+  };
+
+  // Helper functions
+  const calculateGrowthStage = (dayOfYear, cropType, temperature) => {
+    if (cropType === 'maize') {
+      // Maize growing season: October - April (Southern Hemisphere)
+      if (dayOfYear >= 274 || dayOfYear <= 120) { // Oct-Apr
+        const growthDay = dayOfYear >= 274 ? dayOfYear - 274 : dayOfYear + 91;
+        return Math.min(growthDay / 180, 1.0);
+      }
+    } else if (cropType === 'wheat') {
+      // Wheat growing season: May - December (Southern Hemisphere)
+      if (dayOfYear >= 121 && dayOfYear <= 365) { // May-Dec
+        const growthDay = dayOfYear - 121;
+        return Math.min(growthDay / 244, 1.0);
+      }
+    }
+    return 0.1; // Off-season
+  };
+
+  const calculateYieldPrediction = (cropType, temperature, humidity, windSpeed) => {
+    const baseYield = cropType === 'maize' ? 8.5 : 4.2; // tons/hectare
+    const tempFactor = Math.max(0.5, 1.0 - Math.abs(temperature - 25) / 15);
+    const humidityFactor = Math.max(0.6, humidity / 100);
+    const windFactor = Math.max(0.8, 1.0 - windSpeed / 20);
+    
+    return baseYield * tempFactor * humidityFactor * windFactor;
+  };
+
+  const generateFieldBoundaries = (centerLat, centerLng, area) => {
+    const size = Math.sqrt(area) / 111; // Convert to degrees
+    return [
+      { latitude: centerLat - size/2, longitude: centerLng - size/2, altitude: 0 },
+      { latitude: centerLat + size/2, longitude: centerLng - size/2, altitude: 0 },
+      { latitude: centerLat + size/2, longitude: centerLng + size/2, altitude: 0 },
+      { latitude: centerLat - size/2, longitude: centerLng + size/2, altitude: 0 }
+    ];
+  };
+
+  const getIrrigationStatus = (weather) => {
+    if (weather.humidity < 40) return 'DroughStressed';
+    if (weather.humidity > 80) return 'Flooded';
+    return weather.humidity > 60 ? 'Irrigated' : 'Rainfed';
+  };
+
+  const calculateSoilMoisture = (humidity) => {
+    return Math.max(10, Math.min(90, humidity * 0.8 + Math.random() * 20));
+  };
+
+  const calculateSunlightHours = (dayOfYear) => {
+    // Southern Hemisphere: shorter days in winter (June-August)
+    const baseDaylight = 12;
+    const seasonalVariation = 2 * Math.sin((dayOfYear - 172) * Math.PI / 182.5);
+    return baseDaylight + seasonalVariation;
+  };
 
   return (
     <>
       <Head>
-        <title>Agriculture | Buhera-West</title>
-        <meta name="description" content="Precision agriculture and crop optimization" />
+        <title>Agricultural Intelligence | Buhera-West Environmental Intelligence</title>
+        <meta name="description" content="Real-time agricultural analysis using specialized crop visualization and environmental monitoring." />
       </Head>
       <TransitionEffect />
-      <Information />
-      <main className="w-full mb-16 flex flex-col items-center justify-center dark:text-light">
-        <Layout className="pt-16">
-          <div className="w-full">
-            {/* Header Section */}
-            <motion.div 
-              className="mb-8"
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-            >
-              <h1 className="text-6xl font-bold text-center mb-4 dark:text-light lg:text-4xl md:text-3xl sm:text-2xl">
-                Agricultural Intelligence
-              </h1>
-              <p className="text-center text-lg text-gray-600 dark:text-gray-300 max-w-4xl mx-auto">
-                Precision farming optimization, crop monitoring, and agricultural decision support using advanced environmental intelligence
-              </p>
-            </motion.div>
+      
+      <main className="w-full min-h-screen bg-gradient-to-b from-green-900 to-green-700">
+        <Layout>
+          {/* Header */}
+          <div className="text-center mb-8 pt-16">
+            <AnimatedText 
+              text="Agricultural Intelligence Platform" 
+              className="!text-5xl xl:!text-6xl lg:!text-4xl md:!text-3xl sm:!text-2xl !text-white mb-4" 
+            />
+            <p className="text-xl text-gray-200 max-w-4xl mx-auto">
+              Real-time crop monitoring and agricultural analysis using specialized visualization
+            </p>
+          </div>
 
-            {/* Control Panel */}
-            <motion.div 
-              className="mb-8 bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-            >
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Crop Type</label>
-                  <select 
-                    value={cropType} 
-                    onChange={(e) => setCropType(e.target.value)}
-                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                  >
-                    <option value="maize">Maize (Corn)</option>
-                    <option value="tobacco">Tobacco</option>
-                    <option value="cotton">Cotton</option>
-                    <option value="soybean">Soybean</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">Analysis Mode</label>
-                  <select 
-                    value={analysisMode} 
-                    onChange={(e) => setAnalysisMode(e.target.value)}
-                    className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-                  >
-                    <option value="optimization">Optimization</option>
-                    <option value="monitoring">Crop Monitoring</option>
-                    <option value="irrigation">Irrigation Planning</option>
-                    <option value="harvest">Harvest Timing</option>
-                  </select>
-                </div>
-                <div className="flex items-end">
-                  <button className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors">
-                    Analyze Fields
-                  </button>
+          {/* Control Panel */}
+          <div className="absolute top-20 left-4 z-10 bg-black/80 backdrop-blur-md rounded-lg p-4 border border-green-600 max-w-xs">
+            <h3 className="text-white font-bold mb-3">Agricultural Controls</h3>
+            
+            <div className="space-y-3">
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">Visualization Mode</label>
+                <select 
+                  value={visualizationMode} 
+                  onChange={(e) => setVisualizationMode(e.target.value)}
+                  className="w-full bg-gray-800 text-white border border-gray-600 rounded px-2 py-1 text-sm"
+                >
+                  <option value="agricultural_field">Agricultural Field</option>
+                  <option value="crop_field">Crop Field Analysis</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">Visual Mode</label>
+                <select 
+                  value={visualMode} 
+                  onChange={(e) => setVisualMode(e.target.value)}
+                  className="w-full bg-gray-800 text-white border border-gray-600 rounded px-2 py-1 text-sm"
+                >
+                  <option value="growth_stage">Growth Stage</option>
+                  <option value="yield_prediction">Yield Prediction</option>
+                  <option value="soil_health">Soil Health</option>
+                  <option value="irrigation">Irrigation Status</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">
+                  Seasonal Time: Day {seasonalTime}
+                </label>
+                <input
+                  type="range"
+                  min="1"
+                  max="365"
+                  value={seasonalTime}
+                  onChange={(e) => setSeasonalTime(parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <div className="text-xs text-gray-400">
+                  {seasonalTime < 90 ? 'Summer' : 
+                   seasonalTime < 180 ? 'Autumn' : 
+                   seasonalTime < 270 ? 'Winter' : 'Spring'}
                 </div>
               </div>
-            </motion.div>
 
-            {/* Crop Status Overview */}
-            <motion.div 
-              className="mb-8 grid grid-cols-1 md:grid-cols-5 gap-4"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-            >
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg text-center">
-                <div className="text-2xl mb-1">🌱</div>
-                <p className="text-lg font-bold text-green-600">{cropData[cropType].stage}</p>
-                <p className="text-xs text-gray-600 dark:text-gray-300">Growth Stage</p>
+              <div>
+                <label className="block text-gray-300 text-sm mb-1">
+                  Quality Level: {Math.round(qualityLevel * 100)}%
+                </label>
+                <input
+                  type="range"
+                  min="0.3"
+                  max="1.0"
+                  step="0.1"
+                  value={qualityLevel}
+                  onChange={(e) => setQualityLevel(parseFloat(e.target.value))}
+                  className="w-full"
+                />
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg text-center">
-                <div className="text-2xl mb-1">💚</div>
-                <p className="text-lg font-bold text-green-600">{cropData[cropType].health}</p>
-                <p className="text-xs text-gray-600 dark:text-gray-300">Crop Health</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg text-center">
-                <div className="text-2xl mb-1">📊</div>
-                <p className="text-lg font-bold text-blue-600">{cropData[cropType].yield}</p>
-                <p className="text-xs text-gray-600 dark:text-gray-300">Expected Yield</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg text-center">
-                <div className="text-2xl mb-1">💧</div>
-                <p className="text-lg font-bold text-cyan-600">{cropData[cropType].waterNeed}</p>
-                <p className="text-xs text-gray-600 dark:text-gray-300">Water Need</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-lg text-center">
-                <div className="text-2xl mb-1">🗓️</div>
-                <p className="text-lg font-bold text-orange-600">{cropData[cropType].harvestDate}</p>
-                <p className="text-xs text-gray-600 dark:text-gray-300">Harvest Date</p>
-              </div>
-            </motion.div>
 
-            {/* Main Content Grid */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-              
-              {/* Field Management Map */}
-              <motion.div 
-                className="xl:col-span-2"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.3 }}
-              >
-                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
-                  <h2 className="text-2xl font-bold mb-4">Precision Field Management</h2>
-                  <div className="h-96 bg-gradient-to-br from-green-100 to-yellow-100 dark:from-green-900 dark:to-yellow-900 rounded-lg flex items-center justify-center relative overflow-hidden">
-                    {/* Simulated field zones */}
-                    <div className="absolute inset-0 opacity-30">
-                      <div className="absolute top-1/4 left-1/4 w-32 h-24 bg-green-500 rounded-lg blur-sm"></div>
-                      <div className="absolute top-1/2 right-1/4 w-28 h-20 bg-yellow-500 rounded-lg blur-sm"></div>
-                      <div className="absolute bottom-1/3 left-1/3 w-24 h-18 bg-orange-500 rounded-lg blur-sm"></div>
-                      <div className="absolute top-1/3 center w-20 h-16 bg-red-400 rounded-lg blur-sm"></div>
-                    </div>
-                    <div className="text-center z-10">
-                      <div className="text-4xl mb-2">🚜</div>
-                      <p className="text-lg font-semibold">Multi-Modal Agricultural Analysis</p>
-                      <p className="text-sm text-gray-600 dark:text-gray-300">
-                        Crop Monitoring • Irrigation Optimization • Weather Integration
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Agricultural Metrics & Recommendations */}
-              <motion.div 
-                className="space-y-6"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.6, delay: 0.4 }}
-              >
-                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
-                  <h3 className="text-xl font-bold mb-4">Field Conditions</h3>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-300">Soil Moisture:</span>
-                      <span className="font-semibold text-blue-600">{agriculturalMetrics.soilMoisture}%</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-300">Nutrient Level:</span>
-                      <span className="font-semibold text-green-600">{agriculturalMetrics.nutrientLevel}%</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-300">Pest Risk:</span>
-                      <span className="font-semibold text-orange-600">{agriculturalMetrics.pestRisk}%</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-300">Disease Risk:</span>
-                      <span className="font-semibold text-green-600">{agriculturalMetrics.diseaseRisk}%</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 dark:text-gray-300">Irrigation Efficiency:</span>
-                      <span className="font-semibold text-blue-600">{agriculturalMetrics.irrigationEfficiency}%</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
-                  <h3 className="text-xl font-bold mb-4">Optimization Actions</h3>
-                  <div className="space-y-3">
-                    {optimizationRecommendations.slice(0, 3).map((rec, index) => (
-                      <div key={index} className="border-l-4 border-green-500 pl-3">
-                        <div className="font-semibold text-sm">{rec.type}</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-300">{rec.action}</div>
-                        <div className="text-xs text-blue-600">{rec.timing}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
-                  <h3 className="text-xl font-bold mb-4">Resource Efficiency</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Water Savings:</span>
-                      <span className="text-xs bg-blue-100 dark:bg-blue-900 px-2 py-1 rounded">+35%</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Energy Efficiency:</span>
-                      <span className="text-xs bg-green-100 dark:bg-green-900 px-2 py-1 rounded">+28%</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm">Yield Improvement:</span>
-                      <span className="text-xs bg-yellow-100 dark:bg-yellow-900 px-2 py-1 rounded">+22%</span>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
+              <div className="space-y-2">
+                <label className="flex items-center text-gray-300 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={showTooltips}
+                    onChange={(e) => setShowTooltips(e.target.checked)}
+                    className="mr-2"
+                  />
+                  Show Tooltips
+                </label>
+              </div>
             </div>
 
-            {/* Analysis Dashboard */}
-            <motion.div 
-              className="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.5 }}
-            >
-              {/* Crop Growth Analysis */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
-                <h3 className="text-xl font-bold mb-4">Crop Growth Analysis</h3>
-                <div className="h-64 bg-gradient-to-t from-green-50 to-yellow-100 dark:from-green-900 dark:to-yellow-800 rounded-lg flex items-center justify-center relative">
-                  <div className="absolute bottom-0 left-0 w-full h-20 bg-gradient-to-t from-green-200 to-transparent dark:from-green-700"></div>
-                  <div className="text-center z-10">
-                    <div className="text-3xl mb-2">📈</div>
-                    <p className="font-semibold">Growth Stage Monitoring</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">Real-time crop development tracking</p>
-                  </div>
-                </div>
+            {loading && (
+              <div className="mt-4 text-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-500 mx-auto mb-2"></div>
+                <span className="text-gray-300 text-xs">Loading agricultural data...</span>
               </div>
+            )}
 
-              {/* Irrigation Optimization */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg">
-                <h3 className="text-xl font-bold mb-4">Irrigation Optimization</h3>
-                <div className="h-64 bg-gradient-to-br from-blue-50 to-cyan-100 dark:from-blue-900 dark:to-cyan-800 rounded-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-3xl mb-2">💧</div>
-                    <p className="font-semibold">Smart Water Management</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">AI-driven irrigation scheduling</p>
-                  </div>
-                </div>
+            {error && (
+              <div className="mt-4 p-2 bg-red-900/50 border border-red-600 rounded text-red-200 text-xs">
+                Error: {error}
               </div>
-            </motion.div>
+            )}
+          </div>
 
-            {/* Technology Integration */}
-            <motion.div 
-              className="mt-8 bg-gradient-to-r from-green-50 to-yellow-50 dark:from-green-900 dark:to-yellow-900 rounded-lg p-8"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.6 }}
-            >
-              <h2 className="text-2xl font-bold mb-6 text-center">Precision Agriculture Technologies</h2>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="text-center">
-                  <div className="text-4xl mb-2">🌿</div>
-                  <h3 className="font-semibold mb-2">Crop Health Monitoring</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Multi-spectral analysis for disease and stress detection
-                  </p>
-                </div>
-                <div className="text-center">
-                  <div className="text-4xl mb-2">💧</div>
-                  <h3 className="font-semibold mb-2">Smart Irrigation</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Groundwater detection with optimal water scheduling
-                  </p>
-                </div>
-                <div className="text-center">
-                  <div className="text-4xl mb-2">🌦️</div>
-                  <h3 className="font-semibold mb-2">Weather Integration</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Solar reflectance and atmospheric analysis for decisions
-                  </p>
-                </div>
-                <div className="text-center">
-                  <div className="text-4xl mb-2">🤖</div>
-                  <h3 className="font-semibold mb-2">AI Optimization</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Machine learning for yield and resource optimization
-                  </p>
-                </div>
-              </div>
-            </motion.div>
+          {/* Data Info Panel */}
+          <div className="absolute top-20 right-4 z-10 bg-black/80 backdrop-blur-md rounded-lg p-4 border border-green-600 max-w-sm">
+            <h3 className="text-white font-bold mb-3">Agricultural Data</h3>
+            <div className="text-gray-300 text-sm space-y-2">
+              <div><strong>Active Fields:</strong> {cropFieldData.length}</div>
+              <div><strong>Total Area:</strong> {cropFieldData.reduce((sum, field) => sum + field.agricultural_properties.field_area, 0).toFixed(0)} ha</div>
+              <div><strong>Avg Yield:</strong> {cropFieldData.length > 0 ? (cropFieldData.reduce((sum, field) => sum + field.agricultural_properties.yield_prediction, 0) / cropFieldData.length).toFixed(1) : 0} t/ha</div>
+              <div><strong>Irrigation:</strong> {cropFieldData.filter(field => field.agricultural_properties.irrigation_status === 'Irrigated').length} / {cropFieldData.length} fields</div>
+              <div><strong>Weather Stations:</strong> {weatherData.length}</div>
+            </div>
+          </div>
 
-            {/* Crop Management Stages */}
-            <motion.div 
-              className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-6"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.7 }}
+          {/* Main 3D Visualization */}
+          <div className="w-full h-screen">
+            <Canvas
+              camera={{ position: [0, 100, 200], fov: 60 }}
+              shadows
+              gl={{ antialias: true }}
             >
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg text-center">
-                <div className="text-3xl mb-2">🌱</div>
-                <h3 className="font-semibold mb-2">Planting</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Optimal timing and seed placement</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg text-center">
-                <div className="text-3xl mb-2">🌿</div>
-                <h3 className="font-semibold mb-2">Growth</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Monitoring and nutrient management</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg text-center">
-                <div className="text-3xl mb-2">🌾</div>
-                <h3 className="font-semibold mb-2">Maturation</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Disease prevention and protection</p>
-              </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg text-center">
-                <div className="text-3xl mb-2">🚜</div>
-                <h3 className="font-semibold mb-2">Harvest</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Timing optimization and logistics</p>
-              </div>
-            </motion.div>
+              <Environment preset="sunset" />
+              
+              {/* Lighting */}
+              <ambientLight intensity={0.4} />
+              <directionalLight
+                position={[100, 100, 50]}
+                intensity={1.0}
+                castShadow
+                shadow-mapSize-width={2048}
+                shadow-mapSize-height={2048}
+              />
+              
+              {/* Main Visualization */}
+              {!loading && (
+                <>
+                  {visualizationMode === 'agricultural_field' && agriculturalData && (
+                    <AgriculturalVisualization
+                      data={agriculturalData}
+                      qualityLevel={qualityLevel}
+                      enabled={true}
+                    />
+                  )}
+                  
+                  {visualizationMode === 'crop_field' && cropFieldData.length > 0 && (
+                    <CropFieldVisualization
+                      cropFieldData={cropFieldData}
+                      visualMode={visualMode}
+                      seasonalTime={seasonalTime}
+                      showTooltips={showTooltips}
+                      enableSelection={true}
+                      qualityLevel={qualityLevel}
+                    />
+                  )}
+                </>
+              )}
+              
+              <OrbitControls
+                enablePan={true}
+                enableZoom={true}
+                enableRotate={true}
+                maxPolarAngle={Math.PI / 2}
+                minDistance={50}
+                maxDistance={1000}
+              />
+              
+              {qualityLevel > 0.8 && <Stats />}
+            </Canvas>
+          </div>
 
-            {/* Performance Metrics */}
-            <motion.div 
-              className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.8 }}
-            >
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg text-center">
-                <div className="text-3xl mb-2">📊</div>
-                <h3 className="font-semibold mb-2">Yield Increase</h3>
-                <p className="text-2xl font-bold text-green-600">+25%</p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Compared to traditional methods</p>
+          {/* Agricultural Metrics */}
+          <div className="absolute bottom-4 left-4 z-10 bg-black/80 backdrop-blur-md rounded-lg p-4 border border-green-600">
+            <h4 className="text-white font-bold mb-2">Agricultural Metrics</h4>
+            <div className="space-y-1 text-xs">
+              <div className="flex items-center text-gray-300">
+                <div className="w-4 h-2 bg-green-500 mr-2 rounded"></div>
+                Healthy Crops
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg text-center">
-                <div className="text-3xl mb-2">💧</div>
-                <h3 className="font-semibold mb-2">Water Savings</h3>
-                <p className="text-2xl font-bold text-blue-600">35%</p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Through optimized irrigation</p>
+              <div className="flex items-center text-gray-300">
+                <div className="w-4 h-2 bg-yellow-500 mr-2 rounded"></div>
+                Moderate Growth
               </div>
-              <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-lg text-center">
-                <div className="text-3xl mb-2">⚡</div>
-                <h3 className="font-semibold mb-2">Energy Efficiency</h3>
-                <p className="text-2xl font-bold text-orange-600">+28%</p>
-                <p className="text-sm text-gray-600 dark:text-gray-300">Reduced operational costs</p>
+              <div className="flex items-center text-gray-300">
+                <div className="w-4 h-2 bg-red-500 mr-2 rounded"></div>
+                Stressed Crops
               </div>
-            </motion.div>
+              <div className="flex items-center text-gray-300">
+                <div className="w-4 h-2 bg-blue-500 mr-2 rounded"></div>
+                Irrigated Areas
+              </div>
+            </div>
           </div>
         </Layout>
       </main>
     </>
-  )
-}
+  );
+};
 
-export default AgriculturePage
+export default AgriculturalAnalysis;

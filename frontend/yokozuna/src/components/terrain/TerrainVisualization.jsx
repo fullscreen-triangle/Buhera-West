@@ -20,8 +20,15 @@ export const TerrainVisualization = ({
   useEffect(() => {
     const initEngine = async () => {
       try {
-        // Mock engine initialization - would be replaced with actual WASM module
-        console.log('Terrain visualization engine initializing...');
+        // Import and initialize the WASM terrain engine
+        const { TerrainVisualizationEngine } = await import('../../wasm/terrain_engine');
+        const engine = new TerrainVisualizationEngine();
+        await engine.initialize();
+        engineRef.current = engine;
+        console.log('Terrain visualization engine initialized successfully');
+      } catch (error) {
+        console.error('Failed to initialize terrain engine:', error);
+        // Fallback to mock implementation
         engineRef.current = {
           update_sunlight: (time, location) => ({
             date_time: new Date(time * 1000).toISOString(),
@@ -32,8 +39,6 @@ export const TerrainVisualization = ({
             ambient_light: 0.3
           })
         };
-      } catch (error) {
-        console.error('Failed to initialize terrain engine:', error);
       }
     };
     initEngine();
