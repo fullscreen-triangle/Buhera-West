@@ -558,6 +558,18 @@ const Navbar = () => {
           description: "Satellite orbital mechanics"
         },
         {
+          href: "/orbit",
+          title: "Satellite Orbits",
+          icon: "🛰️",
+          description: "Real-time satellite tracking & orbital visualization"
+        },
+        {
+          href: "/cell-towers",
+          title: "Cell Tower Networks",
+          icon: "📡",
+          description: "Cellular network infrastructure & coverage"
+        },
+        {
           href: "/sensors/reconstruction",
           title: "Reconstruction",
           icon: "🔄",
@@ -596,6 +608,12 @@ const Navbar = () => {
           title: "Solar System",
           icon: "☀️",
           description: "Solar system visualization"
+        },
+        {
+          href: "/space-dynamics",
+          title: "Space Weather",
+          icon: "🌌",
+          description: "Space weather monitoring & visualization"
         }
       ]
     },
@@ -662,11 +680,11 @@ const Navbar = () => {
   const getSensorStates = () => {
     const path = router.asPath;
     return {
-      satellite: path.includes('weather') || path.includes('geography') || path.includes('location') || path.includes('extraterrestrial-mechanics') || path.includes('sensors') || path.includes('cosmology') || path.includes('oceanoegraphy'),
-      cellTower: path.includes('weather') || path.includes('hydrology') || path.includes('terrestrial') || path.includes('sensors') || path.includes('location'),
-      weatherStation: path.includes('weather') || path.includes('agriculture') || path.includes('sensors'),
+      satellite: path.includes('weather') || path.includes('geography') || path.includes('location') || path.includes('extraterrestrial-mechanics') || path.includes('sensors') || path.includes('cosmology') || path.includes('oceanoegraphy') || path.includes('orbit') || path.includes('space-dynamics'),
+      cellTower: path.includes('weather') || path.includes('hydrology') || path.includes('terrestrial') || path.includes('sensors') || path.includes('location') || path.includes('cell-towers'),
+      weatherStation: path.includes('weather') || path.includes('agriculture') || path.includes('sensors') || path.includes('space-dynamics'),
       gps: path.includes('geography') || path.includes('geology') || path.includes('location') || path.includes('sensors') || path.includes('distributed') || path.includes('reconstruction'),
-      atmospheric: path.includes('weather') || path.includes('agriculture') || path.includes('sensors') || path.includes('atmosphere'),
+      atmospheric: path.includes('weather') || path.includes('agriculture') || path.includes('sensors') || path.includes('atmosphere') || path.includes('space-dynamics'),
       soil: path.includes('agriculture') || path.includes('geology') || path.includes('hydrology') || path.includes('sensors') || path.includes('subterrainian')
     };
   };

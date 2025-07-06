@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const apiKey = process.env.OPENCELLID_API_KEY;
+    const apiKey = process.env.NEXT_PUBLIC_OPENCELLID_API_KEY;
     
     if (!apiKey) {
       throw new Error('OpenCellID API key not configured');
