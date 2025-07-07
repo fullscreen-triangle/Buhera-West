@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useState } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import Head from "next/head";
 import TransitionEffect from "@/components/TransitionEffect";
@@ -9,7 +9,10 @@ import TimeControls from '@/components/weather/TimeControls';
 import AmbientWeatherAudio from '@/components/weather/AmbientWeatherAudio';
 import { AIProvider } from '@/contexts/AIContext';
 import { TimeProvider } from '@/contexts/TimeContext';
-import { FaSearch, FaClock, FaRobot, FaVolumeUp, FaVolumeOff, FaTimes, FaExpand, FaCompress } from 'react-icons/fa';
+import { FaSearch, FaClock, FaRobot, FaVolumeUp, FaVolumeOff, FaTimes, FaExpand, FaCompress, FaPlane, FaSatellite, FaThermometerHalf, FaGlobe, FaMousePointer, FaInfoCircle, FaPlay, FaPause } from 'react-icons/fa';
+import { TextureLoader, ShaderMaterial, Vector2, Mesh, SphereGeometry, MeshPhongMaterial } from 'three';
+import * as THREE from 'three';
+import * as solar from 'solar-calculator';
 
 // Dynamic import for react-globe.gl to prevent SSR issues
 const Globe = dynamic(() => import('react-globe.gl'), {
@@ -18,7 +21,7 @@ const Globe = dynamic(() => import('react-globe.gl'), {
     <div className="w-full h-full bg-black flex items-center justify-center">
       <div className="text-white text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-        <p className="text-lg">Loading Weather Globe...</p>
+        <p className="text-lg">Loading Global Intelligence Platform...</p>
       </div>
     </div>
   )
@@ -28,34 +31,36 @@ const Globe = dynamic(() => import('react-globe.gl'), {
 const WeatherGlobeContext = createContext(null);
 
 const initialState = {
-  // Globe state
-  focusedMarker: null,
+  mode: GLOBE_MODES.FLIGHTS,
   hasLoaded: false,
-  markers: [],
   start: false,
-  lastUpdated: null,
-  topLocations: [],
+  flightData: [],
+  airlineData: [],
+  satelliteData: [],
+  weatherData: [],
+  cableData: [],
+  seaTrafficData: [],
+  cloudData: null,
+  interactiveArcs: [],
+  interactiveRings: [],
   isLoading: true,
-  
-  // UI state
+  selectedPoint: null,
+  animationTime: 0,
+  focusedMarker: null,
+  topLocations: [],
+  lastUpdated: null,
   showSearch: false,
   showTimeControls: false,
   showAIAssistant: false,
   audioEnabled: false,
-  
-  // Weather state
   currentWeatherData: null,
   currentLocation: null,
   currentTime: new Date(),
   isPlaying: false,
   timeRange: '24h',
   playbackSpeed: 1,
-  
-  // Audio state
   audioVolume: 0.3,
   isAudioMuted: false,
-  
-  // Layout state
   isFullscreen: false,
   overlayPositions: {
     search: { x: 50, y: 50 },
@@ -67,10 +72,36 @@ const initialState = {
 function reducer(state, action) {
   const { payload, type } = action;
   switch (type) {
+    case 'SET_MODE':
+      return { ...state, mode: payload };
     case 'LOADED':
       return { ...state, hasLoaded: true };
     case 'START':
       return { ...state, start: true };
+    case 'SET_FLIGHT_DATA':
+      return { ...state, flightData: payload };
+    case 'SET_AIRLINE_DATA':
+      return { ...state, airlineData: payload };
+    case 'SET_SATELLITE_DATA':
+      return { ...state, satelliteData: payload };
+    case 'SET_WEATHER_DATA':
+      return { ...state, weatherData: payload };
+    case 'SET_CABLE_DATA':
+      return { ...state, cableData: payload };
+    case 'SET_SEA_TRAFFIC_DATA':
+      return { ...state, seaTrafficData: payload };
+    case 'SET_CLOUD_DATA':
+      return { ...state, cloudData: payload };
+    case 'SET_INTERACTIVE_ARCS':
+      return { ...state, interactiveArcs: payload };
+    case 'SET_INTERACTIVE_RINGS':
+      return { ...state, interactiveRings: payload };
+    case 'SET_LOADING':
+      return { ...state, isLoading: payload };
+    case 'SET_SELECTED_POINT':
+      return { ...state, selectedPoint: payload };
+    case 'SET_ANIMATION_TIME':
+      return { ...state, animationTime: payload };
     case 'FOCUS':
       return { ...state, focusedMarker: payload };
     case 'SET_MARKERS':
@@ -79,10 +110,6 @@ function reducer(state, action) {
       return { ...state, topLocations: payload };
     case 'SET_LAST_UPDATED':
       return { ...state, lastUpdated: payload };
-    case 'SET_LOADING':
-      return { ...state, isLoading: payload };
-    case 'SET_WEATHER_DATA':
-      return { ...state, currentWeatherData: payload };
     case 'SET_LOCATION':
       return { ...state, currentLocation: payload };
     case 'SET_TIME':
@@ -198,12 +225,198 @@ function DraggablePanel({ title, children, onClose, position, onPositionChange, 
   );
 }
 
+// Day/Night Shader from globes.md
+const dayNightShader = {
+  vertexShader: `
+    varying vec3 vNormal;
+    varying vec2 vUv;
+    void main() {
+      vNormal = normalize(normalMatrix * normal);
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    #define PI 3.141592653589793
+    uniform sampler2D dayTexture;
+    uniform sampler2D nightTexture;
+    uniform vec2 sunPosition;
+    uniform vec2 globeRotation;
+    varying vec3 vNormal;
+    varying vec2 vUv;
+
+    float toRad(in float a) {
+      return a * PI / 180.0;
+    }
+
+    vec3 Polar2Cartesian(in vec2 c) {
+      float theta = toRad(90.0 - c.x);
+      float phi = toRad(90.0 - c.y);
+      return vec3(
+        sin(phi) * cos(theta),
+        cos(phi),
+        sin(phi) * sin(theta)
+      );
+    }
+
+    void main() {
+      float invLon = toRad(globeRotation.x);
+      float invLat = -toRad(globeRotation.y);
+      mat3 rotX = mat3(
+        1, 0, 0,
+        0, cos(invLat), -sin(invLat),
+        0, sin(invLat), cos(invLat)
+      );
+      mat3 rotY = mat3(
+        cos(invLon), 0, sin(invLon),
+        0, 1, 0,
+        -sin(invLon), 0, cos(invLon)
+      );
+      vec3 rotatedSunDirection = rotX * rotY * Polar2Cartesian(sunPosition);
+      float intensity = dot(normalize(vNormal), normalize(rotatedSunDirection));
+      vec4 dayColor = texture2D(dayTexture, vUv);
+      vec4 nightColor = texture2D(nightTexture, vUv);
+      float blendFactor = smoothstep(-0.1, 0.1, intensity);
+      gl_FragColor = mix(nightColor, dayColor, blendFactor);
+    }
+  `
+};
+
+// Sun position calculation from globes.md
+const sunPosAt = dt => {
+  const day = new Date(+dt).setUTCHours(0, 0, 0, 0);
+  const t = solar.century(dt);
+  const longitude = (day - dt) / 864e5 * 360 - 180;
+  return [longitude - solar.equationOfTime(t) / 4, solar.declination(t)];
+};
+
 // Globe Component
 function WeatherGlobe() {
   const [state, dispatch] = useWeatherGlobe();
   const { focusedMarker, hasLoaded, markers, start, currentTime, currentWeatherData, currentLocation, audioEnabled, audioVolume, isAudioMuted } = state;
   const [globeReady, setGlobeReady] = useState(false);
   const [globeRef, setGlobeRef] = useState(null);
+  const [globeMaterial, setGlobeMaterial] = useState();
+  const [cloudsLayer, setCloudsLayer] = useState(null);
+  const [dt, setDt] = useState(+new Date());
+
+  // Time animation - advance time continuously
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDt(dt => dt + 60 * 1000); // 1 minute per frame
+    }, 100);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Initialize day/night shader material
+  useEffect(() => {
+    const initializeDayNightShader = async () => {
+      try {
+        const dayTexture = await new TextureLoader().loadAsync('//cdn.jsdelivr.net/npm/three-globe/example/img/earth-day.jpg');
+        const nightTexture = await new TextureLoader().loadAsync('//cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg');
+        
+        const material = new ShaderMaterial({
+          uniforms: {
+            dayTexture: { value: dayTexture },
+            nightTexture: { value: nightTexture },
+            sunPosition: { value: new Vector2() },
+            globeRotation: { value: new Vector2() }
+          },
+          vertexShader: dayNightShader.vertexShader,
+          fragmentShader: dayNightShader.fragmentShader
+        });
+        
+        setGlobeMaterial(material);
+      } catch (error) {
+        console.warn('Failed to load day/night textures, using fallback');
+      }
+    };
+
+    initializeDayNightShader();
+  }, []);
+
+  // Update sun position based on time
+  useEffect(() => {
+    if (globeMaterial) {
+      const sunPosition = sunPosAt(dt);
+      globeMaterial.uniforms.sunPosition.value.set(...sunPosition);
+    }
+  }, [dt, globeMaterial]);
+
+  // Add animated clouds layer from globes.md
+  useEffect(() => {
+    if (globeReady && globeRef && !cloudsLayer) {
+      const globe = globeRef;
+      
+      // Load cloud texture or create procedural one
+      const loadCloudsTexture = () => {
+        return new Promise((resolve) => {
+          const textureLoader = new TextureLoader();
+          textureLoader.load(
+            '/environments/clouds.png',
+            (texture) => resolve(texture),
+            undefined,
+            (error) => {
+              console.warn('Using procedural cloud texture');
+              // Create procedural cloud texture
+              const canvas = document.createElement('canvas');
+              canvas.width = 1024;
+              canvas.height = 512;
+              const ctx = canvas.getContext('2d');
+              
+              // Create cloudy pattern
+              const gradient = ctx.createRadialGradient(512, 256, 0, 512, 256, 400);
+              gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+              gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0.4)');
+              gradient.addColorStop(1, 'rgba(255, 255, 255, 0.1)');
+              
+              ctx.fillStyle = gradient;
+              ctx.fillRect(0, 0, 1024, 512);
+              
+              // Add cloud-like noise
+              for (let i = 0; i < 200; i++) {
+                const x = Math.random() * 1024;
+                const y = Math.random() * 512;
+                const radius = Math.random() * 50 + 10;
+                const opacity = Math.random() * 0.3 + 0.1;
+                
+                ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fill();
+              }
+              
+              resolve(new THREE.CanvasTexture(canvas));
+            }
+          );
+        });
+      };
+      
+      loadCloudsTexture().then((cloudsTexture) => {
+        const clouds = new Mesh(
+          new SphereGeometry(globe.getGlobeRadius() * 1.004, 75, 75),
+          new MeshPhongMaterial({ 
+            map: cloudsTexture, 
+            transparent: true, 
+            opacity: 0.6,
+            blending: THREE.AdditiveBlending
+          })
+        );
+        
+        globe.scene().add(clouds);
+        setCloudsLayer(clouds);
+        
+        // Animate clouds rotation
+        const animateClouds = () => {
+          if (clouds) {
+            clouds.rotation.y += 0.002;
+            requestAnimationFrame(animateClouds);
+          }
+        };
+        animateClouds();
+      });
+    }
+  }, [globeReady, globeRef, cloudsLayer]);
 
   useEffect(() => {
     // Mark as loaded when globe is ready
@@ -259,10 +472,18 @@ function WeatherGlobe() {
 
   return (
     <div className="fixed inset-0">
+      {/* Time display */}
+      <div className="fixed bottom-4 left-4 z-10 bg-black/70 backdrop-blur-sm rounded-lg p-2 text-white text-sm">
+        {new Date(dt).toLocaleString()}
+      </div>
+      
       <div className={hasLoaded ? 'block' : 'hidden'}>
         <Globe
-          ref={setGlobeRef}
-          globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+          ref={(ref) => {
+            setGlobeRef(ref);
+          }}
+          globeMaterial={globeMaterial}
+          globeImageUrl={globeMaterial ? undefined : "//unpkg.com/three-globe/example/img/earth-night.jpg"}
           backgroundImageUrl="//unpkg.com/three-globe/example/img/night-sky.png"
           width={typeof window !== 'undefined' ? window.innerWidth : 800}
           height={typeof window !== 'undefined' ? window.innerHeight : 600}
@@ -277,20 +498,29 @@ function WeatherGlobe() {
             else if (temp < 30) return '#FFD700';
             else return '#FF4500';
           }}
-          pointAltitude={d => (d.temperature || 20) / 100}
-          pointRadius={d => Math.max((d.temperature || 20) / 30, 0.3)}
+          pointAltitude={d => Math.max((d.temperature || 20) / 100, 0.01)}
+          pointRadius={d => {
+            const temp = d.temperature || 20;
+            const windSpeed = d.windSpeed || 0;
+            // Scale point size based on temperature and wind speed
+            return Math.max(temp / 30 + windSpeed / 50, 0.3);
+          }}
           pointLabel={d => `
             <div style="
-              background: rgba(0,0,0,0.8);
+              background: rgba(0,0,0,0.9);
               color: white;
-              padding: 8px;
-              border-radius: 4px;
-              font-size: 12px;
+              padding: 12px;
+              border-radius: 8px;
+              font-size: 14px;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+              border: 1px solid rgba(255,255,255,0.1);
             ">
-              <strong>${d.name}</strong><br/>
-              ${d.temperature}°C<br/>
-              ${d.weather}<br/>
-              <small>${new Date(d.timestamp).toLocaleTimeString()}</small>
+              <strong style="color: #4FC3F7;">${d.name}</strong><br/>
+              <span style="color: #FFD54F;">🌡️ ${d.temperature}°C</span><br/>
+              <span style="color: #81C784;">🌬️ ${d.windSpeed || 0} km/h</span><br/>
+              <span style="color: #F06292;">💧 ${d.humidity || 0}%</span><br/>
+              <span style="color: #A5D6A7;">${d.weather}</span><br/>
+              <small style="color: #B0BEC5;">${new Date(d.timestamp).toLocaleTimeString()}</small>
             </div>
           `}
           onPointClick={(point) => {
@@ -299,6 +529,12 @@ function WeatherGlobe() {
           onGlobeReady={() => setGlobeReady(true)}
           enablePointerInteraction={true}
           animateIn={true}
+          // Update globe rotation for day/night shader
+          onZoom={useCallback(({ lng, lat }) => {
+            if (globeMaterial?.uniforms.globeRotation) {
+              globeMaterial.uniforms.globeRotation.value.set(lng, lat);
+            }
+          }, [globeMaterial])}
         />
       </div>
       
@@ -308,7 +544,7 @@ function WeatherGlobe() {
           <div className="text-white text-center">
             <div className="animate-spin rounded-full h-16 w-16 border-4 border-blue-400 border-t-transparent mx-auto mb-4"></div>
             <p className="text-xl font-light">Loading Weather Globe...</p>
-            <p className="text-sm opacity-75 mt-2">Connecting to weather networks worldwide</p>
+            <p className="text-sm opacity-75 mt-2">Initializing day/night cycle and cloud systems</p>
           </div>
         </div>
       </div>
@@ -771,6 +1007,159 @@ function Details() {
   );
 }
 
+// Globe visualization modes
+const GLOBE_MODES = {
+  FLIGHTS: 'flights',
+  AIRLINES: 'airlines',
+  SATELLITES: 'satellites',
+  WEATHER: 'weather',
+  CABLES: 'cables',
+  SEA_TRAFFIC: 'sea_traffic',
+  CLOUDS: 'clouds',
+  INTERACTIVE: 'interactive'
+};
+
+const MODE_CONFIG = {
+  [GLOBE_MODES.FLIGHTS]: {
+    title: 'Global Flight Routes',
+    description: 'Real-time airline traffic and major flight corridors',
+    icon: '✈️'
+  },
+  [GLOBE_MODES.AIRLINES]: {
+    title: 'Airline Networks',
+    description: 'Airport hubs and domestic/international flight routes',
+    icon: '🛫'
+  },
+  [GLOBE_MODES.SATELLITES]: {
+    title: 'Satellite Tracking',
+    description: 'Live satellite positions and orbital paths',
+    icon: '🛰️'
+  },
+  [GLOBE_MODES.WEATHER]: {
+    title: 'Weather Patterns',
+    description: 'Global temperature, precipitation, and weather systems',
+    icon: '🌡️'
+  },
+  [GLOBE_MODES.CABLES]: {
+    title: 'Submarine Cables',
+    description: 'Underwater internet infrastructure connecting continents',
+    icon: '🌐'
+  },
+  [GLOBE_MODES.SEA_TRAFFIC]: {
+    title: 'Maritime Traffic',
+    description: 'Global shipping routes and vessel traffic patterns',
+    icon: '🚢'
+  },
+  [GLOBE_MODES.CLOUDS]: {
+    title: 'Cloud Cover',
+    description: 'Real-time global cloud coverage and atmospheric conditions',
+    icon: '☁️'
+  },
+  [GLOBE_MODES.INTERACTIVE]: {
+    title: 'Interactive Explorer',
+    description: 'Click anywhere to explore regional data and connections',
+    icon: '🌍'
+  }
+};
+
+function ModeSelector({ currentMode, onModeChange }) {
+  const modes = [
+    { key: GLOBE_MODES.FLIGHTS, icon: FaPlane, label: 'Flight Routes', color: '#ff4444' },
+    { key: GLOBE_MODES.SATELLITES, icon: FaSatellite, label: 'Satellites', color: '#44ff44' },
+    { key: GLOBE_MODES.WEATHER, icon: FaThermometerHalf, label: 'Weather', color: '#ffff44' },
+    { key: GLOBE_MODES.CABLES, icon: FaGlobe, label: 'Cables', color: '#00ffff' },
+    { key: GLOBE_MODES.CLOUDS, icon: FaCloud, label: 'Clouds', color: '#ffffff' },
+    { key: GLOBE_MODES.INTERACTIVE, icon: FaMousePointer, label: 'Explorer', color: '#ff00ff' }
+  ];
+
+  return (
+    <div className="absolute top-4 left-4 z-10 bg-black/80 backdrop-blur-lg border border-white/20 rounded-lg p-4">
+      <h3 className="text-white text-lg font-semibold mb-3 flex items-center gap-2">
+        <FaInfoCircle className="text-blue-400" />
+        Visualization Modes
+      </h3>
+      <div className="grid grid-cols-2 gap-2">
+        {modes.map(mode => {
+          const Icon = mode.icon;
+          return (
+            <button
+              key={mode.key}
+              onClick={() => onModeChange(mode.key)}
+              className={`flex items-center gap-2 p-3 rounded-lg transition-all ${
+                currentMode === mode.key 
+                  ? 'bg-white/20 border-2 border-white/50' 
+                  : 'bg-white/5 border border-white/10 hover:bg-white/10'
+              }`}
+            >
+              <Icon className="text-white" style={{ color: mode.color }} />
+              <span className="text-white text-sm">{mode.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function InfoPanel({ mode, data }) {
+  const getModeInfo = () => {
+    switch (mode) {
+      case GLOBE_MODES.FLIGHTS:
+        return {
+          title: 'Global Flight Routes',
+          description: 'Major international flight corridors',
+          stats: [`${data.flights?.length || 0} routes displayed`, 'Hub, Regional & Long-haul flights', 'Real-time aviation traffic']
+        };
+      case GLOBE_MODES.SATELLITES:
+        return {
+          title: 'Satellite Tracking',
+          description: 'Low Earth orbit satellite constellation',
+          stats: [`${data.satellites?.length || 0} satellites tracked`, 'ISS, GPS, Communication & Weather', 'Orbital mechanics visualization']
+        };
+      case GLOBE_MODES.WEATHER:
+        return {
+          title: 'Weather Patterns',
+          description: 'Global temperature distribution',
+          stats: [`${data.weather?.length || 0} weather stations`, 'Real-time temperature data', 'Climate pattern analysis']
+        };
+      case GLOBE_MODES.CABLES:
+        return {
+          title: 'Submarine Cables',
+          description: 'Underwater internet infrastructure',
+          stats: [`${data.cables?.length || 0} cable systems`, 'Intercontinental connections', 'Global data backbone']
+        };
+      case GLOBE_MODES.CLOUDS:
+        return {
+          title: 'Cloud Cover',
+          description: 'Animated atmospheric layer',
+          stats: [`${data.clouds?.length || 0} cloud particles`, 'Procedural generation', 'Real-time animation']
+        };
+      case GLOBE_MODES.INTERACTIVE:
+        return {
+          title: 'Interactive Explorer',
+          description: 'Click to create connections',
+          stats: ['Click anywhere on Earth', 'Animated arc connections', 'Propagating ring effects']
+        };
+      default:
+        return { title: 'Global Intelligence Platform', description: 'Select a visualization mode', stats: [] };
+    }
+  };
+
+  const info = getModeInfo();
+
+  return (
+    <div className="absolute top-4 right-4 z-10 bg-black/80 backdrop-blur-lg border border-white/20 rounded-lg p-4 w-80">
+      <h3 className="text-white text-lg font-semibold mb-2">{info.title}</h3>
+      <p className="text-white/70 text-sm mb-3">{info.description}</p>
+      <div className="space-y-1">
+        {info.stats.map((stat, index) => (
+          <div key={index} className="text-white/60 text-xs">• {stat}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Main App Component
 function App() {
   const [state, dispatch] = useWeatherGlobe();
@@ -847,16 +1236,10 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Buhera West - Global Weather Intelligence</title>
-        <meta
-          name="description"
-          content="Interactive 3D weather globe with AI, time controls, location search, and immersive ambient audio. Explore real-time weather patterns across the globe."
-        />
-        <meta property="og:title" content="Buhera West - Global Weather Intelligence" />
-        <meta property="og:description" content="Explore real-time weather patterns with interactive 3D visualization, AI assistant, time controls, and ambient audio." />
-        <meta property="og:type" content="website" />
-        <link rel="preconnect" href="https://api.openweathermap.org" />
-        <link rel="preconnect" href="https://freesound.org" />
+        <title>Global Intelligence Platform | Environmental Intelligence</title>
+        <meta name="description" content="Comprehensive global intelligence platform with multiple interactive visualization modes" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
       </Head>
 
       <TransitionEffect />
