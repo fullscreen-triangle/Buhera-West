@@ -1,5 +1,5 @@
 # Fdb version 4
-["pdflatex"] 1751904762.48802 "/Users/kundai/Development/buhera/buhera-west/docs/ideas/necessity.tex" "necessity.pdf" "necessity" 1751904763.25546 2
+["pdflatex"] 1752068216.43324 "/Users/kundai/Development/buhera/buhera-west/docs/ideas/necessity.tex" "necessity.pdf" "necessity" 1752068217.71289 2
   "/Users/kundai/Development/buhera/buhera-west/docs/ideas/necessity.tex" 1751904640.3727 22020 2311a9eeef0d85e11c23776b6e7dc039 ""
   "/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/cm-super/cm-super-ts1.enc" 1136849721 2900 1537cc8184ad1792082cd229ecc269f4 ""
   "/usr/local/texlive/2024/texmf-dist/fonts/map/fontname/texfonts.map" 1577235249 3524 cb3e574dea2d1052e39280babc910dc8 ""
@@ -143,9 +143,9 @@
   "/usr/local/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map" 1737274391 5466570 e8651e7fa7bb054fee9a07d3f37faf28 ""
   "/usr/local/texlive/2024/texmf-var/web2c/pdftex/pdflatex.fmt" 1737274616 3352297 fbe539441826543ef95a57765edf3d70 ""
   "/usr/local/texlive/2024/texmf.cnf" 1710266656 577 e590dabc9e28c5b61546e15f63eebcdf ""
-  "necessity.aux" 1751904763.21056 3085 84f057b1761481958814ef3ef807f301 "pdflatex"
+  "necessity.aux" 1752068217.66753 3085 84f057b1761481958814ef3ef807f301 "pdflatex"
   "necessity.tex" 1751904640.3727 22020 2311a9eeef0d85e11c23776b6e7dc039 ""
-  "necessity.toc" 1751904763.15227 0 d41d8cd98f00b204e9800998ecf8427e "pdflatex"
+  "necessity.toc" 1752068217.59719 0 d41d8cd98f00b204e9800998ecf8427e "pdflatex"
   (generated)
   "necessity.aux"
   "necessity.log"

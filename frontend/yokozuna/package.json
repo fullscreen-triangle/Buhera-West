@@ -48,6 +48,7 @@
     "simplex-noise": "^4.0.3",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
+    "solar-calculator": "^0.3.0",
     "three": "^0.169.0",
     "three-geo": "^1.4.5",
     "threebox-plugin": "^2.2.7",
