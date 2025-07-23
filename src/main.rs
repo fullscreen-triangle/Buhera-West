@@ -29,6 +29,7 @@ mod error;
 mod data_ingestion;
 mod signal;
 mod environmental_intelligence;
+mod atmospheric_energy;
 
 use config::Config;
 use weather::WeatherEngine;
@@ -37,6 +38,7 @@ use spatial::SpatialAnalysis;
 use forecasting::ForecastingEngine;
 use data_ingestion::DataIngestionEngine;
 use environmental_intelligence::EnvironmentalIntelligenceSystem;
+use atmospheric_energy::AtmosphericEnergySystem;
 use error::AppError;
 
 /// Application state shared across handlers
@@ -49,6 +51,7 @@ pub struct AppState {
     pub forecasting_engine: Arc<ForecastingEngine>,
     pub data_ingestion: Arc<DataIngestionEngine>,
     pub environmental_intelligence: Arc<tokio::sync::RwLock<EnvironmentalIntelligenceSystem>>,
+    pub atmospheric_energy: Arc<AtmosphericEnergySystem>,
 }
 
 /// Health check response
@@ -396,6 +399,56 @@ async fn demo_revolutionary_gps_system() -> Result<Json<serde_json::Value>, AppE
     Ok(Json(response))
 }
 
+/// Get atmospheric energy system status
+async fn get_atmospheric_energy_status(
+    State(state): State<AppState>,
+) -> Result<Json<atmospheric_energy::AtmosphericEnergyResponse>, AppError> {
+    let current_state = state.atmospheric_energy.get_system_status().await?;
+    
+    let response = atmospheric_energy::AtmosphericEnergyResponse {
+        status: "operational".to_string(),
+        current_state,
+        system_info: atmospheric_energy::AtmosphericSystemInfo {
+            molecular_processor_count: "2.5 × 10²⁵ processors/m³".to_string(),
+            theoretical_framework: "Saint Stella-Lorraine's S = k log α".to_string(),
+            sacred_formula: "S = k log α (Boltzmann reinterpretation)".to_string(),
+            system_efficiency: 99.5,
+            innovation_level: "Revolutionary - Zero Computation Navigation".to_string(),
+        },
+    };
+    
+    Ok(Json(response))
+}
+
+/// Coordinate atmospheric energy generation for specific demand
+async fn coordinate_energy_generation(
+    Path(demand_mw): Path<f64>,
+    State(state): State<AppState>,
+) -> Result<Json<atmospheric_energy::AtmosphericEnergyState>, AppError> {
+    let coordinated_state = state.atmospheric_energy
+        .coordinate_energy_generation(demand_mw)
+        .await?;
+    
+    Ok(Json(coordinated_state))
+}
+
+/// Predict energy coordination for future demand profile
+#[derive(Deserialize)]
+struct DemandProfile {
+    future_demands: Vec<(f64, f64)>, // (timestamp, demand_mw)
+}
+
+async fn predict_energy_coordination(
+    State(state): State<AppState>,
+    Json(payload): Json<DemandProfile>,
+) -> Result<Json<Vec<atmospheric_energy::AtmosphericEnergyState>>, AppError> {
+    let predictions = state.atmospheric_energy
+        .predictive_coordination(payload.future_demands)
+        .await?;
+    
+    Ok(Json(predictions))
+}
+
 /// Create application router
 fn create_router(state: AppState) -> Router {
     Router::new()
@@ -423,6 +476,11 @@ fn create_router(state: AppState) -> Router {
         
         // Revolutionary GPS Differential Atmospheric Sensing
         .route("/api/v1/gps/revolutionary-demo", get(demo_revolutionary_gps_system))
+        
+        // Atmospheric Distributed Energy Generation System
+        .route("/api/v1/atmospheric-energy/status", get(get_atmospheric_energy_status))
+        .route("/api/v1/atmospheric-energy/coordinate/:demand_mw", post(coordinate_energy_generation))
+        .route("/api/v1/atmospheric-energy/predict", post(predict_energy_coordination))
         
         // Apply middleware
         .layer(
@@ -486,6 +544,10 @@ async fn main() -> Result<()> {
     ));
     info!("Environmental Intelligence System initialized successfully");
 
+    // Initialize Atmospheric Energy System
+    let atmospheric_energy_system = Arc::new(AtmosphericEnergySystem::new(config.clone(), db_pool.clone()).await?);
+    info!("Atmospheric Energy System initialized successfully");
+
     info!("Core engines initialized successfully");
 
     // Create application state
@@ -497,6 +559,7 @@ async fn main() -> Result<()> {
         forecasting_engine,
         data_ingestion,
         environmental_intelligence,
+        atmospheric_energy: atmospheric_energy_system,
     };
 
     // Build application router
